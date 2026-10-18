@@ -51,13 +51,21 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/stores" className="text-sm text-slate-500 hover:text-slate-800">← All stores</Link>
-        <h1 className="mt-1 text-2xl font-semibold">{store.name}</h1>
-        <p className="text-sm text-slate-500">
-          {PLATFORM_LABELS[store.platform]} · {store.currency} · {store.timezone}
-          {store.connection ? ` · connected ${formatDateTime(store.connection.connectedAt.toISOString(), store.timezone)}` : ""}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <Link href="/stores" className="text-sm text-slate-500 hover:text-slate-800">← All stores</Link>
+          <h1 className="mt-1 text-2xl font-semibold">{store.name}</h1>
+          <p className="text-sm text-slate-500">
+            {PLATFORM_LABELS[store.platform]} · {store.currency} · {store.timezone}
+            {store.connection ? ` · connected ${formatDateTime(store.connection.connectedAt.toISOString(), store.timezone)}` : ""}
+          </p>
+        </div>
+        {store.connection ? (
+          <div className="flex gap-2">
+            <Link href={`/stores/${store.id}/runs`} className="btn-secondary">Run history</Link>
+            <Link href={`/stores/${store.id}/chat`} className="btn">Ask the agent</Link>
+          </div>
+        ) : null}
       </div>
 
       {!store.connection ? <div className="card text-sm">This store has no connection yet.</div> : null}

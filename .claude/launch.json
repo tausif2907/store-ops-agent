@@ -6,6 +6,18 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@store-ops/web", "dev"],
       "port": 3100
+    },
+    {
+      "name": "agent",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@store-ops/agent", "dev"],
+      "port": 3200
+    },
+    {
+      "name": "mcp",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@store-ops/mcp", "dev"],
+      "port": 3201
     }
   ]
 }

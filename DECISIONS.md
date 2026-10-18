@@ -33,3 +33,23 @@ Contract details the suite pins down: keyset pagination with opaque cursors; `[f
 ## 7. Local ports
 
 Platform Postgres on 5433, boutique Postgres on 5434, Redis on 6380, and the dashboard on 3100, to avoid clashing with other local services.
+
+## 8. A manual agent loop, not the SDK tool runner
+
+The loop needs per-run limits (8 tool calls, 60 seconds), a forced final answer once the tool budget is spent (`tool_choice: none`), streamed text and tool events to the dashboard, and per-response cost accounting. A manual loop over `messages.stream` keeps all of that in ~150 lines, and the model sits behind a small `ModelClient` interface so the loop is tested with a scripted model and no API key.
+
+## 9. One stateless MCP server, context in headers
+
+The MCP server is internal and stateless: each request builds a server bound to one run, from the `x-store-id` and `x-run-id` headers the agent API sets (plus a bearer token). The model never supplies a store id. Tool listing is computed per request, so capability flags and the owner's Never settings decide what the model even sees. The MCP server, not the agent, records every tool call, so the trace cannot be skipped by a different caller (such as the Phase 6 worker).
+
+## 10. Model settings
+
+Claude Opus 5.5 (`AGENT_MODEL`) at `medium` effort (`AGENT_EFFORT`), streamed, with server-side refusal fallbacks (`fallbacks: "default"`) so a declined request is retried on a fallback model in the same call. The static system prompt and the tool list are cached (breakpoints on the instructions and the last tool); the store name, time zone and current time sit after the cache breakpoint. Costs are priced by the model that actually served each response and converted to rupees with `USD_TO_INR`.
+
+## 11. Phase 2 policy subset
+
+Reads and drafts run automatically; writes create a pending approval (30-minute expiry) and the agent is told it has not happened. Owners' per-tool modes (Auto/Ask/Never) and the store's pause flag already apply. Limits inside a mode (for example, coupons up to 10%), approving from the dashboard or email, and the settings page arrive in Phase 3.
+
+## 12. Named periods computed in the store's time zone
+
+`sales_summary` takes `period: "yesterday"` (and similar) and computes the range in the store's own time zone, instead of asking the model to do time-zone arithmetic.

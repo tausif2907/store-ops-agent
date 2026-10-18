@@ -3,13 +3,25 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Agent API — agent loop, step/time limits, streamed chat (Phase 2)",
+  "description": "Agent API â€” agent loop, step/time limits, streamed chat (Phase 2)",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
+    "start": "dotenv -e ../../.env -- tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "dotenv -e ../../.env -- vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@store-ops/adapters": "workspace:*",
     "@store-ops/db": "workspace:*",
-    "@store-ops/shared": "workspace:*"
+    "@store-ops/shared": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@store-ops/mcp": "workspace:^",
+    "dotenv-cli": "8.0.0",
+    "tsx": "4.23.15",
+    "vitest": "3.2.7"
   }
 }

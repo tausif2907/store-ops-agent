@@ -9,8 +9,8 @@ The agent decides what to look at and what to do, but every action passes a poli
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Monorepo, Postgres + RLS, auth, connect a store, `StoreAdapter`, Supabase adapter, conformance suite | Done |
-| 2 | MCP server, agent loop, streamed chat, run traces | Next |
-| 3 | Policy engine, approvals, audit log, kill switch | |
+| 2 | MCP server, agent loop, streamed chat, run traces | Done |
+| 3 | Policy engine, approvals, audit log, kill switch | Next |
 | 4 | Shopify adapter | |
 | 5 | WooCommerce adapter, custom REST connector spec | |
 | 6 | Autonomous jobs (BullMQ), email via Resend | |
@@ -21,9 +21,9 @@ The agent decides what to look at and what to do, but every action passes a poli
 
 ```
 apps/
-  web/       Next.js dashboard: sign-up, stores, connect a store (later: chat, approvals, policies)
-  agent/     Agent API (Phase 2)
-  mcp/       MCP server: routes tool calls to the run's store adapter via the policy engine (Phase 2)
+  web/       Next.js dashboard: sign-up, stores, connect a store, streamed chat, run traces
+  agent/     Agent API: the agent loop (Claude), step and time limits, cost tracking, SSE stream
+  mcp/       MCP server: the 12 store tools, routed to the run's store adapter through the policy check
   worker/    BullMQ job worker (Phase 6)
 packages/
   shared/    Normalised types (zod), capabilities, AES-256-GCM credential encryption
@@ -36,6 +36,8 @@ packages/
 - **One adapter interface.** Every platform sits behind `StoreAdapter` (`packages/adapters/src/adapter.ts`) and returns the same normalised types: money in minor units plus a currency code, timestamps in UTC. Each adapter declares its capabilities; a missing capability throws `UNSUPPORTED`.
 - **Tenant isolation in the database.** The app connects as the non-owner `storeops_app` role, so RLS always applies. Queries go through `dbForUser(userId)` (dashboard) or `dbForStore(storeId)` (agent runs, jobs), which set `app.user_id` / `app.store_id` per transaction. With no context, tenant tables return nothing.
 - **Credentials never leave the server.** They are encrypted with AES-256-GCM before storage and decrypted only to build an adapter.
+- **Agent runs go through MCP.** The dashboard's server checks the owner owns the store, then calls the internal agent API, which streams events back. The agent offers Claude only the tools the MCP server lists for that store (capability flags and the owner's Never settings filter them). Every call passes the policy check — reads and drafts run, writes are saved as approvals by default — and is recorded with its decision and latency. The store and run come from headers the agent API sets, never from the model.
+- **Limits per run:** 8 tool calls, 60 seconds, and a cost in rupees on every run (`agent_runs`, `usage`).
 - **Supabase stores** are reached as a restricted `agent_role` that can only execute the `agent_api` functions — never read tables. See `packages/adapters/src/supabase/boutique-reference.sql`.
 
 ## Local development
@@ -48,10 +50,12 @@ cp .env.example .env   # then fill CREDENTIALS_ENCRYPTION_KEY and SESSION_SECRET
 pnpm db:up             # platform Postgres :5433, boutique Postgres :5434, Redis :6380
 pnpm db:migrate
 pnpm boutique:reset    # boutique reference schema + 50 products, 200 orders
-pnpm dev               # http://localhost:3100
+pnpm dev               # dashboard :3100, agent API :3200, MCP server :3201
 ```
 
 To try it: sign up (any email; for local testing we use `demo@storeops.test` / `demo-owner-pass-2026`), then **Connect a store** with platform Supabase and the connection string `postgresql://agent_role:agent_role@localhost:5434/boutique`.
+
+The chat needs a Claude API key: set `ANTHROPIC_API_KEY` in `.env` (and the two internal tokens, `AGENT_INTERNAL_TOKEN` and `MCP_INTERNAL_TOKEN`; commands are in `.env.example`), then open a store and choose **Ask the agent**. Each answer links to its trace: tool calls, policy decisions, tokens and cost.
 
 ### Tests
 
@@ -62,7 +66,9 @@ pnpm typecheck
 
 - `packages/db` — tenant isolation: owner A tries to read and write store B's rows by every route. Pass condition: zero leaks.
 - `packages/adapters` — the conformance suite (`src/testing/conformance.ts`), run against every adapter with the same canonical dataset. Pass condition: 100%.
-- `packages/shared` — credential encryption.
+- `packages/shared` — credential encryption, store-time-zone periods.
+- `apps/mcp` — the MCP server over HTTP with a real MCP client: tool listing, approvals, Auto writes and audit, Never, kill switch, cross-store runs refused.
+- `apps/agent` — the loop with a scripted model (tool limit, time limit, refusals, cost), and the full chain over HTTP: agent API → MCP → boutique database.
 
 ## Connecting the real boutique (Supabase)
 

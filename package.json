@@ -6,10 +6,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @store-ops/web dev",
+    "dev": "pnpm --parallel --filter @store-ops/web --filter @store-ops/agent --filter @store-ops/mcp dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm -r --workspace-concurrency=1 test",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @store-ops/db migrate",
