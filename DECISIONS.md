@@ -53,3 +53,21 @@ Reads and drafts run automatically; writes create a pending approval (30-minute 
 ## 12. Named periods computed in the store's time zone
 
 `sales_summary` takes `period: "yesterday"` (and similar) and computes the range in the store's own time zone, instead of asking the model to do time-zone arithmetic.
+
+## 13. The policy engine is a pure function in a shared package
+
+`packages/tools` holds the tool catalog and `decide()`, which takes the tool, the store's saved policy, the pause flag, the validated input and a few facts (today's automatic runs, a variant's current stock) and returns run, ask (with the reason) or deny. Callers fetch only the facts the saved limits need. Keeping it pure makes every rule unit-testable, and the MCP server and the dashboard share one implementation.
+
+Limits fail closed: limits that do not parse, a fact that could not be fetched, or a coupon type the limits do not mention all turn an Automatic call into an approval rather than letting it through.
+
+## 14. Approving runs the saved call; the owner's decision overrides limits
+
+An approval stores the exact validated arguments. Approving claims the row (`PENDING` → `APPROVED` with a conditional update, so double clicks and reused links do nothing), runs the tool through the store's adapter, then records `EXECUTED` or `FAILED` with the store's error. Limits are not re-applied: they decide what may happen without the owner, and the owner has now decided. A paused store refuses approvals too.
+
+## 15. Email approval links act as a sign-in for one decision
+
+Links are HS256 tokens (`APPROVAL_LINK_SECRET`) naming the approval, store and owner, expiring with the approval. Opening the page changes nothing (mail scanners open links); only the Approve or Reject button does. The agent side finds the owner's email through a `SECURITY DEFINER` function that answers only for the store in the current `app.store_id` context, so the users table stays closed to store-scoped code.
+
+## 16. Pausing means nothing the agent proposed happens
+
+The kill switch (`stores.is_paused`) stops new runs in the agent API, refuses every write in the policy engine, and blocks approvals until the owner resumes. Reads stay available to the policy engine so a paused store can still be inspected.

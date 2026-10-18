@@ -41,6 +41,7 @@ jobs:
           cp .env.example .env
           sed -i "s#^CREDENTIALS_ENCRYPTION_KEY=\"\"#CREDENTIALS_ENCRYPTION_KEY=\"$(openssl rand -base64 32)\"#" .env
           sed -i "s#^SESSION_SECRET=\"\"#SESSION_SECRET=\"$(openssl rand -hex 32)\"#" .env
+          sed -i "s#^APPROVAL_LINK_SECRET=\"\"#APPROVAL_LINK_SECRET=\"$(openssl rand -hex 32)\"#" .env
 
       - name: Create app role
         run: PGPASSWORD=storeops psql -h localhost -p 5433 -U storeops -d storeops -f docker/platform-init.sql
@@ -48,6 +49,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
       - run: pnpm typecheck
-      # Includes the tenant-isolation suite (zero leaks) and adapter conformance (100%).
+      # Includes tenant isolation (zero leaks), adapter conformance and the policy engine (100%).
       - run: pnpm test
       - run: pnpm --filter @store-ops/web build

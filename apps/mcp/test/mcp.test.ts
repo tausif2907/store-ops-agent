@@ -152,6 +152,43 @@ describe("MCP server", () => {
     await client.close();
   });
 
+  it("runs Auto coupons within the limits and asks, with the reason, beyond them", async () => {
+    await dbForStore(storeId).policy.create({
+      data: { storeId, action: "create_coupon", mode: "AUTO", limits: { maxPercent: 10, maxUsageLimit: 100 } },
+    });
+    try {
+      const client = await connect(await newRun());
+      const within = await client.callTool({ name: "create_coupon", arguments: { code: "SMALL10", type: "percent", value: 10, usageLimit: 50 } });
+      expect(JSON.parse(textOf(within))).toMatchObject({ code: "SMALL10", value: 10 });
+
+      const over = JSON.parse(textOf(await client.callTool({ name: "create_coupon", arguments: { code: "HUGE40", type: "percent", value: 40, usageLimit: 50 } })));
+      expect(over.status).toBe("pending_approval");
+      expect(over.reason).toMatch(/40% off is over the 10% limit/);
+      const approval = await dbForStore(storeId).approval.findUniqueOrThrow({ where: { id: over.approvalId } });
+      expect(approval.reason).toMatch(/10% limit/);
+      await client.close();
+    } finally {
+      await dbForStore(storeId).policy.deleteMany({ where: { storeId, action: "create_coupon" } });
+    }
+  });
+
+  it("checks stock changes against the current stock", async () => {
+    await dbForStore(storeId).policy.update({
+      where: { storeId_action: { storeId, action: "update_stock" } },
+      data: { limits: { maxChange: 5 } },
+    });
+    const client = await connect(await newRun());
+    const low = JSON.parse(textOf(await client.callTool({ name: "low_stock_products", arguments: { threshold: 3 } })));
+    const variant = low.products.at(-1).lowVariants[0];
+    const small = await client.callTool({ name: "update_stock", arguments: { variantId: variant.id, quantity: variant.stock + 5 } });
+    const updated = JSON.parse(textOf(small));
+    expect(updated.variants.find((v: { id: string }) => v.id === variant.id).stock).toBe(variant.stock + 5);
+    const big = JSON.parse(textOf(await client.callTool({ name: "update_stock", arguments: { variantId: variant.id, quantity: variant.stock + 60 } })));
+    expect(big.status).toBe("pending_approval");
+    expect(big.reason).toMatch(/over the ±5 limit/);
+    await client.close();
+  });
+
   it("hides tools the owner turned off and refuses calls to them", async () => {
     await dbForStore(storeId).policy.create({ data: { storeId, action: "create_coupon", mode: "NEVER" } });
     const client = await connect(await newRun());

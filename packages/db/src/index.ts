@@ -57,6 +57,16 @@ export function dbForStore(storeId: string) {
 
 export type ScopedDb = ReturnType<typeof dbForUser>;
 
+/** The owner's contact details, for a store-scoped caller (agent, MCP, worker). */
+export async function storeOwnerContact(storeId: string): Promise<{ email: string; name: string } | null> {
+  const prisma = basePrisma();
+  const [, rows] = await prisma.$transaction([
+    prisma.$executeRaw`SELECT set_config('app.store_id', ${storeId}, TRUE)`,
+    prisma.$queryRaw<{ email: string; name: string }[]>`SELECT email, name FROM app_store_owner_contact()`,
+  ]);
+  return rows[0] ?? null;
+}
+
 // ---- Auth helpers --------------------------------------------------------
 // Sign-up and login happen before there is a user context, so they go through
 // SECURITY DEFINER functions that expose only what auth needs.

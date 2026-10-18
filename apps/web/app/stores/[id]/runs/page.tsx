@@ -23,16 +23,10 @@ export default async function RunsPage({ params }: { params: Promise<{ id: strin
   ]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <Link href={`/stores/${store.id}`} className="text-sm text-slate-500 hover:text-slate-800">← {store.name}</Link>
-          <h1 className="mt-1 text-2xl font-semibold">Run history</h1>
-        </div>
-        <p className="text-sm text-slate-500">
-          This month: {usage?.runs ?? 0} runs · ₹{Number(usage?.costInr ?? 0).toFixed(2)}
-        </p>
-      </div>
+    <div className="space-y-4">
+      <p className="text-sm text-slate-500">
+        This month: {usage?.runs ?? 0} runs · ₹{Number(usage?.costInr ?? 0).toFixed(2)}
+      </p>
 
       {runs.length === 0 ? (
         <div className="card text-sm text-slate-600">

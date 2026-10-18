@@ -83,6 +83,10 @@ export class SupabaseAdapter implements StoreAdapter {
     return this.call("list_products", [JSON.stringify(parseInput(ProductFilter, filter))], ProductPage);
   }
 
+  async getProductByVariant(variantId: string): Promise<Product> {
+    return this.call("get_variant_product", [variantId], Product);
+  }
+
   async updateStock(variantId: string, qty: number): Promise<Product> {
     return this.call("update_stock", [variantId, parseInput(z.number().int().nonnegative(), qty)], Product);
   }

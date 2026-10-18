@@ -4,7 +4,7 @@ import { createAdapter, isAdapterError } from "@store-ops/adapters";
 import { dbForUser } from "@store-ops/db";
 import type { Capability, Order, SalesSummary } from "@store-ops/shared";
 import { decryptJson } from "@store-ops/shared/crypto";
-import { PLATFORM_LABELS, formatDateTime, formatMoney } from "@/lib/format";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 
 interface Snapshot {
@@ -51,23 +51,6 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link href="/stores" className="text-sm text-slate-500 hover:text-slate-800">← All stores</Link>
-          <h1 className="mt-1 text-2xl font-semibold">{store.name}</h1>
-          <p className="text-sm text-slate-500">
-            {PLATFORM_LABELS[store.platform]} · {store.currency} · {store.timezone}
-            {store.connection ? ` · connected ${formatDateTime(store.connection.connectedAt.toISOString(), store.timezone)}` : ""}
-          </p>
-        </div>
-        {store.connection ? (
-          <div className="flex gap-2">
-            <Link href={`/stores/${store.id}/runs`} className="btn-secondary">Run history</Link>
-            <Link href={`/stores/${store.id}/chat`} className="btn">Ask the agent</Link>
-          </div>
-        ) : null}
-      </div>
-
       {!store.connection ? <div className="card text-sm">This store has no connection yet.</div> : null}
       {error ? (
         <div className="card border-red-200 bg-red-50 text-sm text-red-700" role="alert">

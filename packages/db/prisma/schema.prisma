@@ -178,7 +178,11 @@ model Approval {
   toolCallId String         @unique @map("tool_call_id") @db.Uuid
   args       Json
   summary    String
+  /// Why an Auto call needed approval (it broke a limit); null for Ask.
+  reason     String?
   status     ApprovalStatus @default(PENDING)
+  result     Json?
+  error      String?
   decidedBy  String?        @map("decided_by") @db.Uuid
   decidedAt  DateTime?      @map("decided_at") @db.Timestamptz(3)
   expiresAt  DateTime       @map("expires_at") @db.Timestamptz(3)

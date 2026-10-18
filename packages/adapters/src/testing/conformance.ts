@@ -96,6 +96,7 @@ export function defineConformanceSuite(options: ConformanceOptions): void {
         ["orders", () => adapter.listOrders()],
         ["orders.write", () => adapter.updateOrderStatus(missingId, "processing")],
         ["inventory", () => adapter.listProducts()],
+        ["inventory", () => adapter.getProductByVariant(missingId)],
         ["inventory.write", () => adapter.updateStock(missingId, 1)],
         ["coupons", () => adapter.listCoupons()],
         ["coupons.write", () => adapter.createCoupon({ code: "NOPE10", type: "percent", value: 10 })],
@@ -224,6 +225,14 @@ export function defineConformanceSuite(options: ConformanceOptions): void {
         const expected = dataset.products.filter((p) => p.variants.some((v) => v.stock !== null && v.stock <= 3));
         expect(low.length).toBe(expected.length);
         for (const p of low) expect(p.variants.some((v) => v.stock !== null && v.stock <= 3)).toBe(true);
+      });
+
+      it("finds a variant's product", async (ctx) => {
+        if (!has("inventory")) return ctx.skip();
+        const [listed] = (await adapter.listProducts({ limit: 1 })).items;
+        const variant = listed!.variants.at(-1)!;
+        expect(await adapter.getProductByVariant(variant.id)).toEqual(listed);
+        await expectAdapterError(adapter.getProductByVariant(missingId), "NOT_FOUND");
       });
 
       it("searches products by title", async (ctx) => {

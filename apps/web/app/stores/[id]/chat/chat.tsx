@@ -163,7 +163,11 @@ export function Chat({ storeId }: { storeId: string }) {
                     <li key={t.id} className="flex items-center gap-2 text-xs text-slate-500">
                       <StatusDot status={t.status} />
                       {TOOL_LABELS[t.name] ?? t.name}
-                      {t.status === "pending_approval" ? <span className="font-medium text-amber-700">· waiting for your approval</span> : null}
+                      {t.status === "pending_approval" ? (
+                        <Link href={`/stores/${storeId}/approvals`} className="font-medium text-amber-700 hover:underline">
+                          · waiting for your approval
+                        </Link>
+                      ) : null}
                       {t.status === "error" ? <span className="text-red-600">· failed</span> : null}
                     </li>
                   ))}

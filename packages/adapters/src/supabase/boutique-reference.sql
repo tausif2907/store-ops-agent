@@ -377,6 +377,19 @@ BEGIN
 END
 $$;
 
+CREATE FUNCTION agent_api.get_variant_product(p_variant_id text) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_product uuid;
+BEGIN
+  SELECT product_id INTO v_product FROM product_variants WHERE id = agent_api.to_uuid(p_variant_id);
+  IF v_product IS NULL THEN
+    RAISE EXCEPTION 'variant % not found', p_variant_id USING ERRCODE = 'P0002';
+  END IF;
+  RETURN agent_api.product_json(v_product);
+END
+$$;
+
 CREATE FUNCTION agent_api.update_stock(p_variant_id text, p_qty integer) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -558,6 +571,7 @@ GRANT EXECUTE ON FUNCTION
   agent_api.get_order(text),
   agent_api.update_order_status(text, text),
   agent_api.list_products(jsonb),
+  agent_api.get_variant_product(text),
   agent_api.update_stock(text, integer),
   agent_api.list_coupons(),
   agent_api.create_coupon(jsonb),

@@ -13,6 +13,7 @@
     "@store-ops/adapters": "workspace:*",
     "@store-ops/db": "workspace:*",
     "@store-ops/shared": "workspace:*",
+    "@store-ops/tools": "workspace:*",
     "bcryptjs": "3.0.3",
     "jose": "6.2.12",
     "next": "15.5.28",

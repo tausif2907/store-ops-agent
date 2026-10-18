@@ -34,6 +34,8 @@ export interface StoreAdapter {
   updateOrderStatus(id: string, status: OrderStatus): Promise<Order>;
 
   listProducts(filter?: ProductFilter): Promise<Page<Product>>;
+  /** The product that a variant belongs to (to read its current stock). */
+  getProductByVariant(variantId: string): Promise<Product>;
   /** Sets the absolute stock level of one variant; returns the whole product. */
   updateStock(variantId: string, qty: number): Promise<Product>;
 

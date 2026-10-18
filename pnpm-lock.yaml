@@ -63,6 +63,9 @@ importers:
       '@store-ops/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@store-ops/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -88,6 +91,9 @@ importers:
       '@store-ops/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@store-ops/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
       bcryptjs:
         specifier: 3.0.3
         version: 3.0.3
@@ -191,6 +197,31 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)
+
+  packages/tools:
+    dependencies:
+      '@store-ops/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@store-ops/db':
+        specifier: workspace:*
+        version: link:../db
+      '@store-ops/shared':
+        specifier: workspace:*
+        version: link:../shared
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      dotenv-cli:
+        specifier: 8.0.0
+        version: 8.0.0
       vitest:
         specifier: 3.2.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)
