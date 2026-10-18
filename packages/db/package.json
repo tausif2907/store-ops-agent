@@ -1,0 +1,25 @@
+{
+  "name": "@store-ops/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "dotenv -e ../../.env -- prisma migrate deploy",
+    "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
+    "postinstall": "prisma generate",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "dotenv -e ../../.env -- vitest run"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3"
+  },
+  "devDependencies": {
+    "dotenv-cli": "8.0.0",
+    "prisma": "6.19.3",
+    "vitest": "3.2.7"
+  }
+}

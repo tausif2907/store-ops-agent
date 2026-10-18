@@ -1,0 +1,220 @@
+// Store Ops platform database.
+// Store data (orders, products...) is NOT copied here: it stays in each store
+// and is fetched through adapters. Every tenant-owned table is scoped by
+// store_id under Row-Level Security (see migrations/*_rls).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Platform {
+  SHOPIFY
+  WOOCOMMERCE
+  CUSTOM_REST
+  SUPABASE
+}
+
+enum ConnectionStatus {
+  ACTIVE
+  ERROR
+  REVOKED
+}
+
+enum PolicyMode {
+  AUTO
+  ASK
+  NEVER
+}
+
+enum RunTrigger {
+  CHAT
+  SCHEDULE
+  WEBHOOK
+}
+
+enum RunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  WAITING_APPROVAL
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  EXECUTED
+  FAILED
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  stores       Store[]
+
+  @@map("users")
+}
+
+model Store {
+  id         String   @id @default(uuid()) @db.Uuid
+  ownerId    String   @map("owner_id") @db.Uuid
+  platform   Platform
+  name       String
+  currency   String   @db.Char(3)
+  timezone   String
+  isPaused   Boolean  @default(false) @map("is_paused")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner      User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  connection StoreConnection?
+  policies   Policy[]
+  jobs       Job[]
+  runs       AgentRun[]
+  auditLog   AuditLog[]
+  usage      Usage[]
+
+  @@index([ownerId])
+  @@map("stores")
+}
+
+model StoreConnection {
+  id                   String           @id @default(uuid()) @db.Uuid
+  storeId              String           @unique @map("store_id") @db.Uuid
+  credentialsEncrypted String           @map("credentials_encrypted")
+  scopes               String[]
+  status               ConnectionStatus @default(ACTIVE)
+  lastError            String?          @map("last_error")
+  connectedAt          DateTime         @default(now()) @map("connected_at") @db.Timestamptz(3)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("store_connections")
+}
+
+model Policy {
+  id        String     @id @default(uuid()) @db.Uuid
+  storeId   String     @map("store_id") @db.Uuid
+  action    String
+  mode      PolicyMode
+  limits    Json       @default("{}")
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, action])
+  @@map("policies")
+}
+
+model Job {
+  id        String    @id @default(uuid()) @db.Uuid
+  storeId   String    @map("store_id") @db.Uuid
+  type      String
+  schedule  String
+  isEnabled Boolean   @default(true) @map("is_enabled")
+  lastRunAt DateTime? @map("last_run_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, type])
+  @@map("jobs")
+}
+
+model AgentRun {
+  id         String     @id @default(uuid()) @db.Uuid
+  storeId    String     @map("store_id") @db.Uuid
+  trigger    RunTrigger
+  status     RunStatus  @default(RUNNING)
+  input      String?
+  output     String?
+  error      String?
+  startedAt  DateTime   @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt DateTime?  @map("finished_at") @db.Timestamptz(3)
+  tokensIn   Int        @default(0) @map("tokens_in")
+  tokensOut  Int        @default(0) @map("tokens_out")
+  costInr    Decimal    @default(0) @map("cost_inr") @db.Decimal(10, 4)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  toolCalls ToolCall[]
+
+  @@index([storeId, createdAt])
+  @@map("agent_runs")
+}
+
+model ToolCall {
+  id             String   @id @default(uuid()) @db.Uuid
+  runId          String   @map("run_id") @db.Uuid
+  toolName       String   @map("tool_name")
+  args           Json
+  result         Json?
+  policyDecision String   @map("policy_decision")
+  latencyMs      Int?     @map("latency_ms")
+  tokens         Int?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  run      AgentRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  approval Approval?
+
+  @@index([runId, createdAt])
+  @@map("tool_calls")
+}
+
+model Approval {
+  id         String         @id @default(uuid()) @db.Uuid
+  toolCallId String         @unique @map("tool_call_id") @db.Uuid
+  args       Json
+  summary    String
+  status     ApprovalStatus @default(PENDING)
+  decidedBy  String?        @map("decided_by") @db.Uuid
+  decidedAt  DateTime?      @map("decided_at") @db.Timestamptz(3)
+  expiresAt  DateTime       @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  toolCall ToolCall @relation(fields: [toolCallId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt])
+  @@map("approvals")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  storeId   String   @map("store_id") @db.Uuid
+  actor     String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+  @@map("audit_log")
+}
+
+model Usage {
+  id        String  @id @default(uuid()) @db.Uuid
+  storeId   String  @map("store_id") @db.Uuid
+  month     String  @db.Char(7) // YYYY-MM
+  runs      Int     @default(0)
+  tokens    Int     @default(0)
+  costInr   Decimal @default(0) @map("cost_inr") @db.Decimal(12, 4)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, month])
+  @@map("usage")
+}

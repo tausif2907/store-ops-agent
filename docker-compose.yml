@@ -1,0 +1,44 @@
+# Local development services.
+# - platform: the Store Ops platform database (users, stores, policies, traces).
+# - boutique: stands in for the boutique's Supabase Postgres, used by the Supabase adapter and its tests.
+# - redis: job queues (Phase 6).
+services:
+  platform-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: storeops
+      POSTGRES_PASSWORD: storeops
+      POSTGRES_DB: storeops
+    ports:
+      - "5433:5432"
+    volumes:
+      - platform-data:/var/lib/postgresql/data
+      - ./docker/platform-init.sql:/docker-entrypoint-initdb.d/platform-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U storeops"]
+      interval: 2s
+      retries: 30
+
+  boutique-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: boutique
+      POSTGRES_PASSWORD: boutique
+      POSTGRES_DB: boutique
+    ports:
+      - "5434:5432"
+    volumes:
+      - boutique-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boutique"]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+volumes:
+  platform-data:
+  boutique-data:

@@ -1,0 +1,15 @@
+{
+  "name": "@store-ops/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server — routes tools to the run's store adapter through the policy engine (Phase 2)",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@store-ops/adapters": "workspace:*",
+    "@store-ops/db": "workspace:*",
+    "@store-ops/shared": "workspace:*"
+  }
+}
