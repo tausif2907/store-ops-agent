@@ -32,6 +32,11 @@ export interface ConformanceOptions {
   createAdapter: () => StoreAdapter | Promise<StoreAdapter>;
   /** An id that is well-formed for this platform but does not exist. */
   missingId?: string;
+  /**
+   * The time the store's dataset was generated from. Stores that cannot be
+   * reseeded for every run (Shopify) keep it; others default to now.
+   */
+  anchor?: () => Promise<Date>;
 }
 
 const DAY = 86_400_000;
@@ -65,13 +70,15 @@ export function defineConformanceSuite(options: ConformanceOptions): void {
   const missingId = options.missingId ?? "999999999";
 
   describe(`adapter conformance: ${options.name}`, () => {
-    const now = new Date();
-    const dataset = buildDataset(now);
+    let now: Date;
+    let dataset: Dataset;
     let adapter: StoreAdapter;
     let caps: Set<Capability>;
     const has = (c: Capability) => caps.has(c);
 
     beforeAll(async () => {
+      now = options.anchor ? await options.anchor() : new Date();
+      dataset = buildDataset(now);
       await options.reset(dataset);
       adapter = await options.createAdapter();
       caps = new Set(await adapter.capabilities());
@@ -252,7 +259,7 @@ export function defineConformanceSuite(options: ConformanceOptions): void {
         const welcome = coupons.find((c) => c.code === "WELCOME10")!;
         expect(welcome).toMatchObject({ type: "percent", value: 10, active: true });
         expect(coupons.find((c) => c.code === "DIWALI20")?.active).toBe(false); // expired
-        expect(coupons.find((c) => c.code === "BRIDAL15")?.active).toBe(false); // used up
+        expect(coupons.find((c) => c.code === "STAFF25")?.active).toBe(false); // switched off
       });
     });
 

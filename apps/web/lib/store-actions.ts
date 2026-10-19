@@ -7,6 +7,7 @@ import { dbForUser } from "@store-ops/db";
 import { Platform } from "@store-ops/shared";
 import { encryptJson } from "@store-ops/shared/crypto";
 import { requireUser } from "./session";
+import { startShopifyInstall } from "./shopify";
 import type { FormState } from "./auth-actions";
 
 const ConnectStoreInput = z.object({
@@ -33,6 +34,12 @@ function isTimeZone(tz: string): boolean {
  */
 export async function connectStore(_prev: FormState, form: FormData): Promise<FormState> {
   const user = await requireUser();
+  if (form.get("platform") === "SHOPIFY") {
+    // Shopify stores connect through Shopify's own approval screen.
+    const result = await startShopifyInstall(user.id, String(form.get("shop") ?? ""));
+    if ("error" in result) return { error: result.error };
+    redirect(result.url);
+  }
   const parsed = ConnectStoreInput.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: parsed.error.issues[0]!.message };
   const { name, platform, currency, timezone, connectionString } = parsed.data;

@@ -1,6 +1,15 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 export * from "@prisma/client";
+
+/**
+ * True for a unique-constraint violation. Checks the error code rather than
+ * `instanceof`, which fails when bundlers load two copies of Prisma's classes.
+ */
+export function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  return e?.code === "P2002" || (e?.code === "P2010" && /23505/.test(String(e.message))) || /23505|unique constraint/i.test(String(e?.message ?? ""));
+}
 
 /**
  * The runtime connects as the non-owner `storeops_app` role (APP_DATABASE_URL),
@@ -67,6 +76,13 @@ export async function storeOwnerContact(storeId: string): Promise<{ email: strin
   return rows[0] ?? null;
 }
 
+/** The store a platform webhook belongs to, found by the platform's own store id. */
+export async function storeIdForExternal(platform: "SHOPIFY" | "WOOCOMMERCE" | "CUSTOM_REST" | "SUPABASE", externalId: string): Promise<string | null> {
+  const rows = await basePrisma().$queryRaw<{ id: string | null }[]>`
+    SELECT app_store_for_external(${platform}::"Platform", ${externalId})::text AS id`;
+  return rows[0]?.id ?? null;
+}
+
 // ---- Auth helpers --------------------------------------------------------
 // Sign-up and login happen before there is a user context, so they go through
 // SECURITY DEFINER functions that expose only what auth needs.
@@ -89,7 +105,7 @@ export async function createUser(email: string, name: string, passwordHash: stri
       SELECT app_create_user(${email.toLowerCase()}, ${name}, ${passwordHash})::text AS id`;
     return rows[0]!.id;
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && /unique|23505/i.test(err.message)) {
+    if (isUniqueViolation(err)) {
       throw new EmailTakenError();
     }
     throw err;

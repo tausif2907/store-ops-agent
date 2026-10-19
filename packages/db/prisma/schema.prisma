@@ -73,6 +73,8 @@ model Store {
   currency   String   @db.Char(3)
   timezone   String
   isPaused   Boolean  @default(false) @map("is_paused")
+  /// The platform's own id for the store (Shopify: the myshopify.com domain).
+  externalId String?  @map("external_id")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -83,7 +85,9 @@ model Store {
   runs       AgentRun[]
   auditLog   AuditLog[]
   usage      Usage[]
+  webhookEvents WebhookEvent[]
 
+  @@unique([platform, externalId])
   @@index([ownerId])
   @@map("stores")
 }
@@ -221,4 +225,22 @@ model Usage {
 
   @@unique([storeId, month])
   @@map("usage")
+}
+
+/// Webhooks received from a store's platform, kept for the job worker (Phase 6).
+model WebhookEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  storeId     String    @map("store_id") @db.Uuid
+  topic       String
+  /// The platform's delivery id, so retried deliveries are stored once.
+  deliveryId  String    @map("delivery_id")
+  payload     Json
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, deliveryId])
+  @@index([storeId, receivedAt])
+  @@map("webhook_events")
 }

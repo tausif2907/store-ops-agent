@@ -1,11 +1,11 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { createAdapter, type StoreAdapter } from "@store-ops/adapters";
+import type { StoreAdapter } from "@store-ops/adapters";
 import { dbForStore } from "@store-ops/db";
 import { periodRange, type Capability } from "@store-ops/shared";
-import { decryptJson } from "@store-ops/shared/crypto";
 import {
   TOOLS,
+  adapterForStore,
   decide,
   describeToolError,
   effectiveMode,
@@ -85,8 +85,9 @@ async function loadStore(ctx: RunContext): Promise<LoadedStore> {
   if (!store.connection || store.connection.status !== "ACTIVE") throw new ContextError("The store is not connected");
 
   const connection = store.connection;
+  // Keyed by the connection, not its tokens: a refreshed token is already inside the cached adapter.
   const adapter = cachedAdapter(store.id, `${connection.id}:${connection.connectedAt.toISOString()}`, () =>
-    createAdapter(store.platform, decryptJson(connection.credentialsEncrypted)),
+    adapterForStore(store, connection.credentialsEncrypted),
   );
   return {
     store: { id: store.id, name: store.name, currency: store.currency, timezone: store.timezone, isPaused: store.isPaused },

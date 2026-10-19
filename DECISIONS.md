@@ -71,3 +71,27 @@ Links are HS256 tokens (`APPROVAL_LINK_SECRET`) naming the approval, store and o
 ## 16. Pausing means nothing the agent proposed happens
 
 The kill switch (`stores.is_paused`) stops new runs in the agent API, refuses every write in the policy engine, and blocks approvals until the owner resumes. Reads stay available to the policy engine so a paused store can still be inspected.
+
+## 17. Shopify: standalone app, authorization-code grant, expiring offline tokens
+
+The dashboard is a standalone site, so owners install through Shopify's authorization-code grant rather than an embedded app's token exchange. Shopify requires new public apps to use expiring offline tokens (`expiring=1`): access tokens last an hour and refresh tokens 90 days. The adapter refreshes a minute before expiry and once more on a 401, and the store's connection is updated through a callback (`adapterForStore`). Before refreshing, it re-reads the stored tokens in case another process (MCP server, worker, dashboard) refreshed first. When the refresh token is refused, the owner has to reconnect.
+
+The OAuth state lives in a signed, 10-minute, `SameSite=Lax` cookie bound to the signed-in owner and the shop, so a callback cannot attach a store to a different account. Shop domains must match `^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$`.
+
+## 18. Shopify: how the normalised model maps
+
+- **Order date** is `processedAt`, the business date, which imported orders can set; `createdAt` is when the record was created in Shopify.
+- **Status:** cancelled, refunded, shipped (fulfilled) and delivered (a DELIVERED fulfillment event) come from Shopify; `processing` and `ready` have no Shopify field and are the order tags `ops-processing` and `ops-ready`. The agent can move orders between pending, processing and ready, and fulfil them (shipped, delivered). Cancelling and refunding move money and stock, so they stay in Shopify admin.
+- **Promised date** is the `store_ops.promised_at` metafield.
+- **Stock** is the variant's total available quantity; changes are applied at its first active location with compare-and-set (`changeFromQuantity`) and an idempotency key, which Shopify requires since 2026-04.
+- **Coupons** are basic code discounts; other discount kinds are not shown. Usage counts come from real orders, so the conformance suite no longer asserts a seeded usage count.
+- **Reviews** are not in Shopify's API, so Shopify stores have no reviews capability and the agent never sees review tools for them.
+- Filters Shopify search cannot express exactly (normalised status, overdue, low stock per variant, product text) are applied by the adapter while paging, with per-item cursors so pages resume correctly. Fine for small and medium stores; large catalogues may later need bulk operations.
+
+## 19. Validating GraphQL against the real schema instead of mocking Shopify
+
+Shopify's Admin API schema is downloaded (as SDL) for the pinned version and committed, and every query and mutation the adapter or seeder sends is validated against it in CI. Unit tests use a scripted fake `fetch` for behaviour (refresh, throttling, mapping, pagination). Together they catch most API mistakes without a store; the conformance suite against a seeded development store is the final check.
+
+## 20. Webhooks are stored, not acted on, until the worker exists
+
+The receiver verifies the HMAC over the raw body, finds the store through a `SECURITY DEFINER` lookup by shop domain, and stores the event once per delivery id (`webhook_events`, RLS like every tenant table). `app/uninstalled` marks the connection revoked. Compliance requests are logged to the activity log; the job worker (Phase 6) will act on stored events.

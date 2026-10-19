@@ -1,9 +1,9 @@
-import { createAdapter, isAdapterError, type StoreAdapter } from "@store-ops/adapters";
+import { isAdapterError, type StoreAdapter } from "@store-ops/adapters";
 import { dbForStore, storeOwnerContact, type Prisma } from "@store-ops/db";
-import { decryptJson } from "@store-ops/shared/crypto";
 import { approvalUrl, signApprovalLink } from "./approval-link";
 import { ToolInputError, getTool, type ToolContext, type ToolDefinition } from "./catalog";
 import { escapeHtml, sendEmail } from "./email";
+import { adapterForStore } from "./store-adapter";
 
 export const APPROVAL_TTL_MS = 30 * 60 * 1000;
 
@@ -25,7 +25,7 @@ export async function withStoreAdapter<T>(
 ): Promise<T> {
   const store = await dbForStore(storeId).store.findUnique({ where: { id: storeId }, include: { connection: true } });
   if (!store?.connection || store.connection.status !== "ACTIVE") throw new ToolInputError("The store is not connected.");
-  const adapter = createAdapter(store.platform, decryptJson(store.connection.credentialsEncrypted));
+  const adapter = adapterForStore(store, store.connection.credentialsEncrypted);
   try {
     return await fn(adapter, { id: store.id, name: store.name, currency: store.currency, timezone: store.timezone, isPaused: store.isPaused });
   } finally {

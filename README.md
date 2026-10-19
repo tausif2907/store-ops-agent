@@ -11,8 +11,8 @@ The agent decides what to look at and what to do, but every action passes a poli
 | 1 | Monorepo, Postgres + RLS, auth, connect a store, `StoreAdapter`, Supabase adapter, conformance suite | Done |
 | 2 | MCP server, agent loop, streamed chat, run traces | Done |
 | 3 | Policy engine, approvals, audit log, kill switch | Done |
-| 4 | Shopify adapter | Next |
-| 5 | WooCommerce adapter, custom REST connector spec | |
+| 4 | Shopify adapter | Done (conformance run needs a dev store: [setup](docs/shopify-setup.md)) |
+| 5 | WooCommerce adapter, custom REST connector spec | Next |
 | 6 | Autonomous jobs (BullMQ), email via Resend | |
 | 7 | Evals and hardening | |
 | 8 | Onboarding, deploy, launch polish | |
@@ -27,7 +27,7 @@ apps/
   worker/    BullMQ job worker (Phase 6)
 packages/
   shared/    Normalised types (zod), capabilities, AES-256-GCM credential encryption
-  adapters/  StoreAdapter interface, Supabase adapter, canonical dataset, conformance suite
+  adapters/  StoreAdapter interface, Supabase and Shopify adapters, canonical dataset, conformance suite
   tools/     The tool catalog, the policy engine, approvals (dashboard and email links)
   db/        Prisma schema, migrations with Row-Level Security, tenant-scoped clients
 ```
@@ -40,6 +40,7 @@ packages/
 - **Agent runs go through MCP.** The dashboard's server checks the owner owns the store, then calls the internal agent API, which streams events back. The agent offers Claude only the tools the MCP server lists for that store (capability flags and the owner's Never settings filter them). Every call passes the policy check — reads and drafts run, writes are saved as approvals by default — and is recorded with its decision and latency. The store and run come from headers the agent API sets, never from the model.
 - **Owners set the rules.** Each tool is Automatic, Ask me or Off, per store. Automatic writes can carry limits (largest coupon discount and uses, largest stock change, allowed order statuses, runs per day); a call over a limit becomes an approval that says which limit it broke. Approvals expire after 30 minutes and can be decided in the dashboard or from a signed one-time email link, which runs the exact saved arguments. **Pause the agent** stops every run and every change at once. Every change, rule edit, pause and decision lands in the store's append-only activity log.
 - **Limits per run:** 8 tool calls, 60 seconds, and a cost in rupees on every run (`agent_runs`, `usage`).
+- **Shopify stores** connect through Shopify's OAuth approval screen. The app uses expiring offline tokens; adapters refresh them and save the new tokens encrypted. Webhooks are verified by HMAC, stored per store, and `app/uninstalled` marks the connection revoked. Every GraphQL document is validated in tests against Shopify's Admin API schema (2026-10). See [docs/shopify-setup.md](docs/shopify-setup.md).
 - **Supabase stores** are reached as a restricted `agent_role` that can only execute the `agent_api` functions — never read tables. See `packages/adapters/src/supabase/boutique-reference.sql`.
 
 ## Local development
@@ -73,7 +74,7 @@ pnpm typecheck
 ```
 
 - `packages/db` — tenant isolation: owner A tries to read and write store B's rows by every route. Pass condition: zero leaks.
-- `packages/adapters` — the conformance suite (`src/testing/conformance.ts`), run against every adapter with the same canonical dataset. Pass condition: 100%.
+- `packages/adapters` — the conformance suite (`src/testing/conformance.ts`), run against every adapter with the same canonical dataset. Pass condition: 100%. Shopify adds schema validation of every query, unit tests against a fake Shopify (OAuth, webhook signatures, token refresh, throttling, mapping), and the same conformance suite against a seeded development store when one is configured.
 - `packages/shared` — credential encryption, store-time-zone periods.
 - `packages/tools` — the policy engine (modes, every limit, kill switch, fail-closed on bad limits) and approvals against the boutique: approve runs once, reject changes nothing, expiry, pause, cross-store refusal, signed links.
 - `apps/mcp` — the MCP server over HTTP with a real MCP client: tool listing, approvals, Auto writes and audit, Never, kill switch, cross-store runs refused.

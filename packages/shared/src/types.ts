@@ -177,12 +177,14 @@ export const ReviewFilter = z.object({
 });
 export type ReviewFilter = z.infer<typeof ReviewFilter>;
 
-export const CreateCouponInput = z.object({
-  code: z.string().min(3).max(32).regex(/^[A-Z0-9_-]+$/i),
-  type: z.enum(["percent", "fixed"]),
-  value: z.number().int().positive(),
-  usageLimit: z.number().int().positive().nullable().optional(),
-  startsAt: isoUtc.nullable().optional(),
-  endsAt: isoUtc.nullable().optional(),
-});
+export const CreateCouponInput = z
+  .object({
+    code: z.string().min(3).max(32).regex(/^[A-Z0-9_-]+$/i),
+    type: z.enum(["percent", "fixed"]),
+    value: z.number().int().positive(),
+    usageLimit: z.number().int().positive().nullable().optional(),
+    startsAt: isoUtc.nullable().optional(),
+    endsAt: isoUtc.nullable().optional(),
+  })
+  .refine((c) => c.type !== "percent" || c.value <= 100, { message: "A percent discount must be 100 or less", path: ["value"] });
 export type CreateCouponInput = z.infer<typeof CreateCouponInput>;

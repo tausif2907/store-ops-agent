@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createAdapter, isAdapterError } from "@store-ops/adapters";
+import { isAdapterError } from "@store-ops/adapters";
 import { dbForUser } from "@store-ops/db";
 import type { Capability, Order, SalesSummary } from "@store-ops/shared";
-import { decryptJson } from "@store-ops/shared/crypto";
+import { adapterForStore } from "@store-ops/tools";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 
@@ -24,7 +24,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
   let snapshot: Snapshot | null = null;
   let error: string | null = null;
   if (store.connection) {
-    const adapter = createAdapter(store.platform, decryptJson(store.connection.credentialsEncrypted));
+    const adapter = adapterForStore(store, store.connection.credentialsEncrypted);
     try {
       const to = new Date();
       const from = new Date(to.getTime() - 7 * 86_400_000);

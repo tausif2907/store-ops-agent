@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { basePrisma, createUser, dbForStore, dbForUser, findUserForLogin } from "../src/index";
+import { EmailTakenError, basePrisma, createUser, dbForStore, dbForUser, findUserForLogin, storeIdForExternal } from "../src/index";
 
 /**
  * Store A's context tries to reach store B's data by every route the platform
@@ -36,6 +36,8 @@ beforeAll(async () => {
     data: { toolCallId: call.id, args: {}, summary: "coupon", expiresAt: new Date(Date.now() + 60_000) },
   });
   await dbB.auditLog.create({ data: { storeId: storeB, actor: "test", action: "seed" } });
+  await dbB.store.update({ where: { id: storeB }, data: { externalId: `b-${tag}.myshopify.com` } });
+  await dbForStore(storeB).webhookEvent.create({ data: { storeId: storeB, topic: "orders/create", deliveryId: "d1", payload: {} } });
 });
 
 afterAll(async () => {
@@ -62,6 +64,21 @@ describe("tenant isolation", () => {
     expect(await dbA.toolCall.findMany({ where: { runId: runB } })).toEqual([]);
     expect(await dbA.approval.findMany()).toEqual([]);
     expect(await dbA.auditLog.findMany({ where: { storeId: storeB } })).toEqual([]);
+  });
+
+  it("webhook events stay with their store", async () => {
+    expect(await dbForUser(userA).webhookEvent.findMany()).toEqual([]);
+    expect(await dbForStore(storeA).webhookEvent.findMany()).toEqual([]);
+    await expect(
+      dbForStore(storeA).webhookEvent.create({ data: { storeId: storeB, topic: "x", deliveryId: "d2", payload: {} } }),
+    ).rejects.toThrow();
+  });
+
+  it("the external-id lookup returns only a store id", async () => {
+    const b = await dbForUser(userB).store.findUniqueOrThrow({ where: { id: storeB } });
+    expect(await storeIdForExternal("SHOPIFY", b.externalId!)).toBeNull(); // platform must match too
+    expect(await storeIdForExternal("SUPABASE", b.externalId!)).toBe(storeB);
+    expect(await storeIdForExternal("SUPABASE", "nope.myshopify.com")).toBeNull();
   });
 
   it("owner A cannot read owner B's user row", async () => {
@@ -102,6 +119,11 @@ describe("tenant isolation", () => {
   it("the audit log is append-only for the app", async () => {
     const dbB = dbForUser(userB);
     await expect(dbB.auditLog.deleteMany({ where: { storeId: storeB } })).rejects.toThrow();
+  });
+
+  it("refuses a second account with the same email, whatever its case", async () => {
+    const email = (await dbForUser(userA).user.findUniqueOrThrow({ where: { id: userA } })).email;
+    await expect(createUser(email.toUpperCase(), "Copy", "x")).rejects.toBeInstanceOf(EmailTakenError);
   });
 
   it("login lookup works without a context and returns only auth fields", async () => {
