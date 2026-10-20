@@ -115,3 +115,23 @@ Deliveries go to `/api/webhooks/woocommerce/<store id>`; the receiver verifies `
 ## 24. Custom stores: a connector API generated from the platform's schemas
 
 The connector API's OpenAPI 3.1 document is built from the same zod schemas the adapter validates responses with, published at `docs/connector/openapi.json` (a test fails if it drifts) and served at `/connector/openapi.json`. Its semantics are the conformance suite's: the sample implementation in `examples/custom-connector` passes it on every test run, so "implements the spec" is checked behaviour, not a promise. Version 1 has no webhooks; polling covers custom stores until a signed-delivery design is needed.
+
+## 25. Autonomous jobs check the store before they wake the agent
+
+Each job has a planner that looks at the store in code first: the low-stock watch compares today's low variants with the ones it already alerted on, the late-order follow-up skips orders that already have a draft, the review job skips reviews it handled. Only when there is new work does it start an agent run, with the facts it found in the prompt. An hourly check with nothing new costs no model tokens. Digest and weekly report always run. Runs go through the same MCP server and policy engine as chat, recorded with `trigger` SCHEDULE (or WEBHOOK) and their `job_type`.
+
+## 26. One BullMQ queue per job, one run per store
+
+Five queues, one per job type, with BullMQ job schedulers (cron pattern plus the store's IANA time zone, so 09:00 means 09:00 in Kolkata). The worker re-reads the jobs table every minute and adds, changes or removes schedulers to match: turning a job off or pausing the store removes them. A Redis lock per store (with an owner token and expiry) keeps two jobs off the same store at once; a job that finds the store busy is pushed back 30 seconds (`moveToDelayed`). The worker finds stores through a `SECURITY DEFINER` function that returns ids only, then works inside each store's RLS context.
+
+## 27. Drafts are a table, and only the owner sends them
+
+Draft tools save to `drafts` (with the run that wrote them) instead of just returning text. The Inbox lets the owner edit, then mark a customer message as sent (they send it themselves; the agent never contacts customers) or post a review reply through the store. Posting is refused while the store is paused, as approvals are. The review job posts directly only when the owner has set review replies to Automatic, and then still through the policy engine.
+
+## 28. Emails render the agent's markdown without raw HTML
+
+Digests, alerts and reports are emailed through Resend (printed locally without a key). The agent's markdown is rendered with raw HTML dropped, since parts of it can come from customer-written text.
+
+## 29. Tests get their own database
+
+Test scripts load `.env.test` before `.env`, pointing them at `storeops_test`. Otherwise the stores tests create would be scheduled by the dev worker. Redis is shared, but worker tests use a per-run queue prefix.

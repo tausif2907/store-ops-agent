@@ -86,6 +86,7 @@ model Store {
   auditLog   AuditLog[]
   usage      Usage[]
   webhookEvents WebhookEvent[]
+  drafts        Draft[]
 
   @@unique([platform, externalId])
   @@index([ownerId])
@@ -128,6 +129,10 @@ model Job {
   type      String
   schedule  String
   isEnabled Boolean   @default(true) @map("is_enabled")
+  /// Owner settings for the job, e.g. { "threshold": 3 } for the low-stock watch.
+  config    Json      @default("{}")
+  /// What the job has already handled, so it does not repeat itself.
+  state     Json      @default("{}")
   lastRunAt DateTime? @map("last_run_at") @db.Timestamptz(3)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -141,6 +146,8 @@ model AgentRun {
   id         String     @id @default(uuid()) @db.Uuid
   storeId    String     @map("store_id") @db.Uuid
   trigger    RunTrigger
+  /// The autonomous job that started the run (trigger SCHEDULE or WEBHOOK).
+  jobType    String?    @map("job_type")
   status     RunStatus  @default(RUNNING)
   input      String?
   output     String?
@@ -154,6 +161,7 @@ model AgentRun {
 
   store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
   toolCalls ToolCall[]
+  drafts    Draft[]
 
   @@index([storeId, createdAt])
   @@map("agent_runs")
@@ -243,4 +251,41 @@ model WebhookEvent {
   @@unique([storeId, deliveryId])
   @@index([storeId, receivedAt])
   @@map("webhook_events")
+}
+
+enum DraftKind {
+  CUSTOMER_MESSAGE
+  REVIEW_REPLY
+}
+
+enum DraftStatus {
+  PENDING
+  SENT
+  POSTED
+  DISMISSED
+}
+
+/// Something the agent wrote for the owner to check: never sent or posted by the agent itself.
+model Draft {
+  id          String      @id @default(uuid()) @db.Uuid
+  storeId     String      @map("store_id") @db.Uuid
+  runId       String?     @map("run_id") @db.Uuid
+  kind        DraftKind
+  /// The order or review the draft is about.
+  targetId    String      @map("target_id")
+  /// What the owner sees, e.g. "Order RTS-1042 · Meera Sharma".
+  targetLabel String      @map("target_label")
+  recipient   Json?
+  body        String
+  status      DraftStatus @default(PENDING)
+  decidedBy   String?     @map("decided_by") @db.Uuid
+  decidedAt   DateTime?   @map("decided_at") @db.Timestamptz(3)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  store Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  run   AgentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, status, createdAt])
+  @@index([storeId, kind, targetId])
+  @@map("drafts")
 }

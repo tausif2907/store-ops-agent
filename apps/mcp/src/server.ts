@@ -194,7 +194,24 @@ export async function callTool(ctx: RunContext, name: string, rawArgs: unknown):
   }
 
   try {
-    const result = await def.run(input, { adapter: loaded.adapter, store: loaded.store });
+    const result = await def.run(input, {
+      adapter: loaded.adapter,
+      store: loaded.store,
+      saveDraft: async (draft) =>
+        (
+          await db.draft.create({
+            data: {
+              storeId: ctx.storeId,
+              runId: ctx.runId,
+              kind: draft.kind,
+              targetId: draft.targetId,
+              targetLabel: draft.targetLabel,
+              recipient: draft.recipient ?? undefined,
+              body: draft.body,
+            },
+          })
+        ).id,
+    });
     await record("AUTO", input, result);
     if (def.type === "write") {
       await db.auditLog.create({

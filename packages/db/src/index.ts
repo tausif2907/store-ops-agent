@@ -83,6 +83,18 @@ export async function storeIdForExternal(platform: "SHOPIFY" | "WOOCOMMERCE" | "
   return rows[0]?.id ?? null;
 }
 
+/** Stores with an active connection, for the job worker. Ids only. */
+export async function connectedStoreIds(): Promise<string[]> {
+  const rows = await basePrisma().$queryRaw<{ id: string }[]>`SELECT id::text AS id FROM app_connected_store_ids()`;
+  return rows.map((r) => r.id);
+}
+
+/** Stores with webhook events the worker has not handled yet. Ids only. */
+export async function storesWithPendingWebhooks(): Promise<string[]> {
+  const rows = await basePrisma().$queryRaw<{ id: string }[]>`SELECT id::text AS id FROM app_stores_with_pending_webhooks()`;
+  return rows.map((r) => r.id);
+}
+
 // ---- Auth helpers --------------------------------------------------------
 // Sign-up and login happen before there is a user context, so they go through
 // SECURITY DEFINER functions that expose only what auth needs.

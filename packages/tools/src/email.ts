@@ -10,7 +10,16 @@ export interface Email {
   html: string;
 }
 
+type Transport = (email: Email) => Promise<void>;
+let transport: Transport | null = null;
+
+/** Replaces how emails are sent (tests capture them). Pass null to restore. */
+export function setEmailTransport(next: Transport | null): void {
+  transport = next;
+}
+
 export async function sendEmail(email: Email): Promise<void> {
+  if (transport) return transport(email);
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.log(`[email not sent: RESEND_API_KEY unset]\nTo: ${email.to}\nSubject: ${email.subject}\n\n${email.text}\n`);

@@ -15,7 +15,10 @@ export default async function StoreLayout({ children, params }: { children: Reac
   if (!store) notFound();
   // Pending counts must not include approvals that quietly ran out of time.
   await expireStaleApprovals(store.id);
-  const pending = await db.approval.count({ where: { status: "PENDING", toolCall: { run: { storeId: store.id } } } });
+  const [pending, drafts] = await Promise.all([
+    db.approval.count({ where: { status: "PENDING", toolCall: { run: { storeId: store.id } } } }),
+    db.draft.count({ where: { storeId: store.id, status: "PENDING" } }),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -42,7 +45,7 @@ export default async function StoreLayout({ children, params }: { children: Reac
         </div>
       ) : null}
 
-      <StoreTabs storeId={store.id} pendingApprovals={pending} />
+      <StoreTabs storeId={store.id} pendingApprovals={pending} pendingDrafts={drafts} />
       <div>{children}</div>
     </div>
   );

@@ -13,8 +13,8 @@ The agent decides what to look at and what to do, but every action passes a poli
 | 3 | Policy engine, approvals, audit log, kill switch | Done |
 | 4 | Shopify adapter | Done (conformance run needs a dev store: [setup](docs/shopify-setup.md)) |
 | 5 | WooCommerce adapter, custom REST connector spec | Done |
-| 6 | Autonomous jobs (BullMQ), email via Resend | Next |
-| 7 | Evals and hardening | |
+| 6 | Autonomous jobs (BullMQ), email via Resend | Done |
+| 7 | Evals and hardening | Next |
 | 8 | Onboarding, deploy, launch polish | |
 
 ## Layout
@@ -24,7 +24,7 @@ apps/
   web/       Next.js dashboard: stores, chat, approvals, rules, activity log, run traces, kill switch
   agent/     Agent API: the agent loop (Claude), step and time limits, cost tracking, SSE stream
   mcp/       MCP server: the 12 store tools, routed to the run's store adapter through the policy check
-  worker/    BullMQ job worker (Phase 6)
+  worker/    BullMQ worker: the five autonomous jobs on each store's schedule, one run per store at a time
 examples/
   custom-connector/  Sample implementation of the connector API (passes the conformance suite)
 docs/                Setup guides for Shopify, WooCommerce and custom connectors; the connector OpenAPI spec
@@ -32,7 +32,7 @@ packages/
   shared/    Normalised types (zod), capabilities, AES-256-GCM credential encryption
   adapters/  StoreAdapter interface; Supabase, Shopify, WooCommerce and custom REST adapters;
              connector API spec; canonical dataset; conformance suite
-  tools/     The tool catalog, the policy engine, approvals (dashboard and email links)
+  tools/     The tool catalog, the policy engine, approvals, job definitions and queues
   db/        Prisma schema, migrations with Row-Level Security, tenant-scoped clients
 ```
 
@@ -43,6 +43,7 @@ packages/
 - **Credentials never leave the server.** They are encrypted with AES-256-GCM before storage and decrypted only to build an adapter.
 - **Agent runs go through MCP.** The dashboard's server checks the owner owns the store, then calls the internal agent API, which streams events back. The agent offers Claude only the tools the MCP server lists for that store (capability flags and the owner's Never settings filter them). Every call passes the policy check — reads and drafts run, writes are saved as approvals by default — and is recorded with its decision and latency. The store and run come from headers the agent API sets, never from the model.
 - **Owners set the rules.** Each tool is Automatic, Ask me or Off, per store. Automatic writes can carry limits (largest coupon discount and uses, largest stock change, allowed order statuses, runs per day); a call over a limit becomes an approval that says which limit it broke. Approvals expire after 30 minutes and can be decided in the dashboard or from a signed one-time email link, which runs the exact saved arguments. **Pause the agent** stops every run and every change at once. Every change, rule edit, pause and decision lands in the store's append-only activity log.
+- **The agent works on its own.** Five automations run on each store's schedule, in its own time zone: a morning digest, an hourly low-stock watch, a late-order follow-up that drafts apologies, a negative-review response, and a Monday report. Each first checks the store in code and only starts an agent run when there is something to do. Results go to the owner by email (Resend) and to the dashboard; drafts wait in the Inbox, where the owner sends or posts them. Owners switch automations on and off, change their times and run them now under **Automations**.
 - **Limits per run:** 8 tool calls, 60 seconds, and a cost in rupees on every run (`agent_runs`, `usage`).
 - **Shopify stores** connect through Shopify's OAuth approval screen. The app uses expiring offline tokens; adapters refresh them and save the new tokens encrypted. Webhooks are verified by HMAC, stored per store, and `app/uninstalled` marks the connection revoked. Every GraphQL document is validated in tests against Shopify's Admin API schema (2026-10). See [docs/shopify-setup.md](docs/shopify-setup.md).
 - **WooCommerce stores** connect with REST API keys (Basic auth over HTTPS, signed OAuth 1.0a over HTTP). Webhooks go to a per-store URL and are verified with a secret the adapter creates. See [docs/woocommerce-setup.md](docs/woocommerce-setup.md).
@@ -59,7 +60,7 @@ cp .env.example .env   # then fill CREDENTIALS_ENCRYPTION_KEY and SESSION_SECRET
 pnpm db:up             # platform Postgres :5433, boutique Postgres :5434, Redis :6380
 pnpm db:migrate
 pnpm boutique:reset    # boutique reference schema + 50 products, 200 orders
-pnpm dev               # dashboard :3100, agent API :3200, MCP server :3201
+pnpm dev               # dashboard :3100, agent API :3200, MCP server :3201, job worker
 ```
 
 To try it: sign up (any email; for local testing we use `demo@storeops.test` / `demo-owner-pass-2026`), then **Connect a store** with platform Supabase and the connection string `postgresql://agent_role:agent_role@localhost:5434/boutique`.
@@ -74,6 +75,8 @@ pnpm --filter @store-ops/agent try-tool <storeId> create_coupon '{"code":"FESTIV
 
 ### Tests
 
+Tests use their own database (`storeops_test`, set in `.env.test`), so the stores they create never reach the dev worker. `pnpm db:migrate` migrates both.
+
 ```bash
 pnpm test        # all packages (needs the databases running)
 pnpm typecheck
@@ -84,6 +87,7 @@ pnpm typecheck
 - `packages/shared` — credential encryption, store-time-zone periods.
 - `packages/tools` — the policy engine (modes, every limit, kill switch, fail-closed on bad limits) and approvals against the boutique: approve runs once, reject changes nothing, expiry, pause, cross-store refusal, signed links.
 - `apps/mcp` — the MCP server over HTTP with a real MCP client: tool listing, approvals, Auto writes and audit, Never, kill switch, cross-store runs refused.
+- `apps/worker` — every job against the boutique with a scripted model (drafts, alerts that do not repeat, emails, paused stores), schedules in the store's time zone against real Redis, the store lock, and webhook-triggered checks.
 - `apps/agent` — the loop with a scripted model (tool limit, time limit, refusals, cost), and the full chain over HTTP: agent API → MCP → boutique database.
 
 ## Connecting the real boutique (Supabase)

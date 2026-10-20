@@ -8,7 +8,7 @@
     "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
     "start": "dotenv -e ../../.env -- tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "dotenv -e ../../.env -- vitest run"
+    "test": "dotenv -e ../../.env.test -e ../../.env -- vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

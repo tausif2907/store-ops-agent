@@ -3,13 +3,28 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Job worker: BullMQ queues for autonomous jobs (Phase 6)",
+  "description": "Job worker: runs the autonomous jobs on each store's schedule",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
+    "start": "dotenv -e ../../.env -- tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "dotenv -e ../../.env.test -e ../../.env -- vitest run"
   },
   "dependencies": {
     "@store-ops/adapters": "workspace:*",
+    "@store-ops/agent": "workspace:*",
     "@store-ops/db": "workspace:*",
-    "@store-ops/shared": "workspace:*"
+    "@store-ops/shared": "workspace:*",
+    "@store-ops/tools": "workspace:*",
+    "bullmq": "5.81.5",
+    "ioredis": "5.11.1",
+    "marked": "15.0.12"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
+    "@store-ops/mcp": "workspace:*",
+    "dotenv-cli": "8.0.0",
+    "tsx": "4.23.15",
+    "vitest": "3.2.7"
   }
 }

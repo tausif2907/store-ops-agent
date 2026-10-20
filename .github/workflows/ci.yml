@@ -28,6 +28,10 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U boutique" --health-interval 2s --health-retries 30
 
+      redis:
+        image: redis:7-alpine
+        ports: ["6380:6379"]
+
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -49,6 +53,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
       - run: pnpm typecheck
-      # Includes tenant isolation (zero leaks), adapter conformance and the policy engine (100%).
+      # Tenant isolation (zero leaks), adapter conformance, the policy engine and the job worker.
+      # Tests use the storeops_test database created by platform-init.sql.
       - run: pnpm test
       - run: pnpm --filter @store-ops/web build

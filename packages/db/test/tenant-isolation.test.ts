@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { EmailTakenError, basePrisma, createUser, dbForStore, dbForUser, findUserForLogin, storeIdForExternal } from "../src/index";
+import { EmailTakenError, basePrisma, connectedStoreIds, createUser, dbForStore, dbForUser, findUserForLogin, storeIdForExternal } from "../src/index";
 
 /**
  * Store A's context tries to reach store B's data by every route the platform
@@ -64,6 +64,23 @@ describe("tenant isolation", () => {
     expect(await dbA.toolCall.findMany({ where: { runId: runB } })).toEqual([]);
     expect(await dbA.approval.findMany()).toEqual([]);
     expect(await dbA.auditLog.findMany({ where: { storeId: storeB } })).toEqual([]);
+  });
+
+  it("drafts stay with their store", async () => {
+    await dbForStore(storeB).draft.create({
+      data: { storeId: storeB, kind: "CUSTOMER_MESSAGE", targetId: "o1", targetLabel: "Order 1", body: "Sorry" },
+    });
+    expect(await dbForUser(userA).draft.findMany()).toEqual([]);
+    expect(await dbForStore(storeA).draft.findMany()).toEqual([]);
+    await expect(
+      dbForStore(storeA).draft.create({ data: { storeId: storeB, kind: "REVIEW_REPLY", targetId: "r1", targetLabel: "R", body: "x" } }),
+    ).rejects.toThrow();
+  });
+
+  it("the worker's store lookup returns ids only", async () => {
+    const ids = await connectedStoreIds();
+    expect(ids).toContain(storeB);
+    expect(await basePrisma().store.findMany()).toEqual([]);
   });
 
   it("webhook events stay with their store", async () => {

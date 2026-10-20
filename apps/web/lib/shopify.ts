@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { ShopifyAdapter, appConfigFromEnv, shopifyOAuth } from "@store-ops/adapters";
 import { dbForUser, isUniqueViolation } from "@store-ops/db";
 import { encryptJson } from "@store-ops/shared/crypto";
+import { ensureDefaultJobs } from "@store-ops/tools";
 
 const STATE_COOKIE = "so_shopify_oauth";
 
@@ -136,5 +137,6 @@ export async function finishShopifyInstall(userId: string, params: URLSearchPara
       after: { platform: "SHOPIFY", shop: credentials.shop, scopes: credentials.scopes, missingScopes, webhooks },
     },
   });
+  await ensureDefaultJobs(db, storeId);
   return { storeId };
 }

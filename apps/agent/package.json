@@ -8,7 +8,7 @@
     "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
     "start": "dotenv -e ../../.env -- tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "dotenv -e ../../.env -- vitest run",
+    "test": "dotenv -e ../../.env.test -e ../../.env -- vitest run",
     "try-tool": "dotenv -e ../../.env -- tsx scripts/try-tool.ts"
   },
   "dependencies": {
@@ -24,5 +24,11 @@
     "dotenv-cli": "8.0.0",
     "tsx": "4.23.15",
     "vitest": "3.2.7"
+  },
+  "exports": {
+    "./run": "./src/run.ts",
+    "./anthropic-model": "./src/anthropic-model.ts",
+    "./mcp-tools": "./src/mcp-tools.ts",
+    "./loop": "./src/loop.ts"
   }
 }

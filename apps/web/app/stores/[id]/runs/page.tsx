@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { dbForUser } from "@store-ops/db";
 import { formatDateTime } from "@/lib/format";
+import { JOBS, type JobType } from "@store-ops/tools";
 import { requireUser } from "@/lib/session";
 import { RunStatusBadge } from "./status-badge";
 
@@ -53,7 +54,9 @@ export default async function RunsPage({ params }: { params: Promise<{ id: strin
                       {formatDateTime(r.startedAt.toISOString(), store.timezone)}
                     </Link>
                   </td>
-                  <td className="max-w-xs truncate px-4 py-2">{r.input ?? r.trigger.toLowerCase()}</td>
+                  <td className="max-w-xs truncate px-4 py-2">
+                    {r.jobType && r.jobType in JOBS ? <span className="text-slate-600">{JOBS[r.jobType as JobType].title}</span> : (r.input ?? r.trigger.toLowerCase())}
+                  </td>
                   <td className="px-4 py-2"><RunStatusBadge status={r.status} /></td>
                   <td className="px-4 py-2 text-right">{r._count.toolCalls}</td>
                   <td className="px-4 py-2 text-right">

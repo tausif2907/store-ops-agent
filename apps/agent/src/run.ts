@@ -11,30 +11,51 @@ export interface RunDeps {
   limits?: Partial<LoopLimits>;
 }
 
+export interface RunInput {
+  storeId: string;
+  message: string;
+  history: ChatTurn[];
+  signal?: AbortSignal;
+  /** CHAT by default; the job worker passes SCHEDULE or WEBHOOK with its job type. */
+  trigger?: "CHAT" | "SCHEDULE" | "WEBHOOK";
+  jobType?: string;
+}
+
+export interface RunOutcome {
+  runId: string;
+  status: "SUCCEEDED" | "FAILED" | "CANCELLED";
+  output: string | null;
+  error: string | null;
+}
+
+/** One chat run. Returns the run id; see runAgent for the full outcome. */
+export async function runChat(input: RunInput, emit: (event: AgentEvent) => void, deps: RunDeps): Promise<string> {
+  return (await runAgent(input, emit, deps)).runId;
+}
+
 /**
- * One chat run, traced end to end: the run row, every tool call (recorded by
+ * One agent run, traced end to end: the run row, every tool call (recorded by
  * the MCP server), tokens, cost and the monthly usage counter.
  */
-export async function runChat(
-  input: { storeId: string; message: string; history: ChatTurn[]; signal?: AbortSignal },
-  emit: (event: AgentEvent) => void,
-  deps: RunDeps,
-): Promise<string> {
+export async function runAgent(input: RunInput, emit: (event: AgentEvent) => void, deps: RunDeps): Promise<RunOutcome> {
   const db = dbForStore(input.storeId);
   const store = await db.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw new Error("Unknown store");
 
-  const run = await db.agentRun.create({ data: { storeId: store.id, trigger: "CHAT", input: input.message } });
+  const run = await db.agentRun.create({
+    data: { storeId: store.id, trigger: input.trigger ?? "CHAT", jobType: input.jobType ?? null, input: input.message },
+  });
   emit({ type: "run", runId: run.id });
 
   if (store.isPaused) {
     const message = "This store is paused, so the agent is not running. Resume it from the store page.";
     await db.agentRun.update({ where: { id: run.id }, data: { status: "CANCELLED", error: message, finishedAt: new Date() } });
     emit({ type: "error", message });
-    return run.id;
+    return { runId: run.id, status: "CANCELLED", output: null, error: message };
   }
 
   let tools: Awaited<ReturnType<RunDeps["connectTools"]>> | undefined;
+  let outcome: RunOutcome;
   try {
     tools = await deps.connectTools({ storeId: store.id, runId: run.id });
     const result = await runAgentLoop({
@@ -62,6 +83,7 @@ export async function runChat(
     });
     await recordUsage(store.id, tokensIn + result.tokens.output, costInr);
     emit({ type: "done", output: result.output, tokensIn, tokensOut: result.tokens.output, costInr, toolCalls: result.toolCalls });
+    outcome = { runId: run.id, status: "SUCCEEDED", output: result.output, error: null };
   } catch (err) {
     const message = input.signal?.aborted ? "The run was cancelled." : describeError(err);
     if (!(err instanceof RunLimitError) && !input.signal?.aborted) console.error(`Run ${run.id} failed`, err);
@@ -71,10 +93,11 @@ export async function runChat(
     });
     await recordUsage(store.id, 0, 0);
     emit({ type: "error", message });
+    outcome = { runId: run.id, status: input.signal?.aborted ? "CANCELLED" : "FAILED", output: null, error: message };
   } finally {
     await tools?.close();
   }
-  return run.id;
+  return outcome;
 }
 
 async function recordUsage(storeId: string, tokens: number, costInr: number) {

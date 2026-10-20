@@ -6,13 +6,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @store-ops/web --filter @store-ops/agent --filter @store-ops/mcp dev",
+    "dev": "pnpm --parallel --filter @store-ops/web --filter @store-ops/agent --filter @store-ops/mcp --filter @store-ops/worker dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --workspace-concurrency=1 test",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "db:migrate": "pnpm --filter @store-ops/db migrate",
+    "db:migrate": "pnpm --filter @store-ops/db migrate && pnpm --filter @store-ops/db migrate:test",
     "db:generate": "pnpm --filter @store-ops/db generate",
     "boutique:reset": "pnpm --filter @store-ops/adapters boutique:reset"
   },

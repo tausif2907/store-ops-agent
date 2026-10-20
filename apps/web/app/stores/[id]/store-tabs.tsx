@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export function StoreTabs({ storeId, pendingApprovals }: { storeId: string; pendingApprovals: number }) {
+export function StoreTabs({ storeId, pendingApprovals, pendingDrafts }: { storeId: string; pendingApprovals: number; pendingDrafts: number }) {
   const pathname = usePathname();
   const base = `/stores/${storeId}`;
   const tabs = [
     { href: base, label: "Overview", exact: true },
     { href: `${base}/chat`, label: "Ask the agent" },
     { href: `${base}/approvals`, label: "Approvals", badge: pendingApprovals },
+    { href: `${base}/inbox`, label: "Inbox", badge: pendingDrafts },
+    { href: `${base}/automations`, label: "Automations" },
     { href: `${base}/policies`, label: "Rules" },
     { href: `${base}/activity`, label: "Activity" },
     { href: `${base}/runs`, label: "Runs" },

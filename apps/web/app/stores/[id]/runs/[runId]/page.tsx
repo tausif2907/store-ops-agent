@@ -30,7 +30,8 @@ export default async function RunTracePage({ params }: { params: Promise<{ id: s
           <RunStatusBadge status={run.status} />
         </div>
         <p className="text-sm text-slate-500">
-          {run.store.name} · {run.trigger.toLowerCase()} · {formatDateTime(run.startedAt.toISOString(), tz)}
+          {run.store.name} · {run.jobType ? `${run.jobType.replace(/_/g, " ")} (${run.trigger.toLowerCase()})` : run.trigger.toLowerCase()} ·{" "}
+          {formatDateTime(run.startedAt.toISOString(), tz)}
         </p>
       </div>
 

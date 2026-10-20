@@ -6,7 +6,7 @@ import { AVAILABLE_PLATFORMS, WooAdapter, WooCredentials, createAdapter, testCon
 import { dbForUser, isUniqueViolation } from "@store-ops/db";
 import { Platform } from "@store-ops/shared";
 import { encryptJson } from "@store-ops/shared/crypto";
-import { adapterForStore, webhookUrlFor } from "@store-ops/tools";
+import { adapterForStore, ensureDefaultJobs, webhookUrlFor } from "@store-ops/tools";
 import { requireUser } from "./session";
 import { startShopifyInstall } from "./shopify";
 import type { FormState } from "./auth-actions";
@@ -82,6 +82,7 @@ export async function connectStore(_prev: FormState, form: FormData): Promise<Fo
   await db.auditLog.create({
     data: { storeId: store.id, actor: `user:${user.id}`, action: "store.connected", after: { platform, capabilities } },
   });
+  await ensureDefaultJobs(db, store.id);
   redirect(`/stores/${store.id}`);
 }
 
@@ -146,5 +147,6 @@ async function connectWooCommerce(userId: string, form: FormData): Promise<FormS
   await db.auditLog.create({
     data: { storeId: store.id, actor: `user:${userId}`, action: "store.connected", after: { platform: "WOOCOMMERCE", url: credentials.url, webhooks } },
   });
+  await ensureDefaultJobs(db, store.id);
   redirect(`/stores/${store.id}`);
 }

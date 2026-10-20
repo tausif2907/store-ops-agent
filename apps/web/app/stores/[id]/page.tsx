@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { isAdapterError } from "@store-ops/adapters";
 import { dbForUser } from "@store-ops/db";
 import type { Capability, Order, SalesSummary } from "@store-ops/shared";
-import { adapterForStore } from "@store-ops/tools";
+import { JOBS, adapterForStore, type JobType } from "@store-ops/tools";
+import { Markdown } from "@/components/markdown";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { requireUser } from "@/lib/session";
 
@@ -49,9 +50,40 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  // The latest result of each automation that reports to the owner.
+  const reports = (
+    await Promise.all(
+      (["morning_digest", "weekly_report", "low_stock_watch"] as JobType[]).map((jobType) =>
+        dbForUser(user.id).agentRun.findFirst({
+          where: { storeId: store.id, jobType, status: "SUCCEEDED", output: { not: null } },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, jobType: true, output: true, createdAt: true },
+        }),
+      ),
+    )
+  ).filter((r) => r !== null && Date.now() - r.createdAt.getTime() < 8 * 86_400_000);
+
   return (
     <div className="space-y-6">
       {!store.connection ? <div className="card text-sm">This store has no connection yet.</div> : null}
+      {reports.length ? (
+        <section className="space-y-2">
+          <h2 className="font-medium">From the agent</h2>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {reports.map((r) => (
+              <article key={r!.id} className="card max-h-96 overflow-y-auto">
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-medium">{JOBS[r!.jobType as JobType].title}</h3>
+                  <Link href={`/stores/${store.id}/runs/${r!.id}`} className="text-xs text-slate-400 hover:underline">
+                    {formatDateTime(r!.createdAt.toISOString(), store.timezone)}
+                  </Link>
+                </div>
+                <Markdown>{r!.output!}</Markdown>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {error ? (
         <div className="card border-red-200 bg-red-50 text-sm text-red-700" role="alert">
           Could not reach the store. {error}

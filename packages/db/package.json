@@ -12,7 +12,8 @@
     "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
     "postinstall": "prisma generate",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "dotenv -e ../../.env -- vitest run"
+    "test": "dotenv -e ../../.env.test -e ../../.env -- vitest run",
+    "migrate:test": "dotenv -e ../../.env.test -e ../../.env -- prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "6.19.3"

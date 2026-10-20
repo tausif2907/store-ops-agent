@@ -20,9 +20,19 @@ import {
 export type ToolType = "read" | "draft" | "write";
 export type PolicyMode = "AUTO" | "ASK" | "NEVER";
 
+export interface DraftToSave {
+  kind: "CUSTOMER_MESSAGE" | "REVIEW_REPLY";
+  targetId: string;
+  targetLabel: string;
+  recipient: { name: string; email: string | null; phone: string | null } | null;
+  body: string;
+}
+
 export interface ToolContext {
   adapter: StoreAdapter;
   store: { id: string; name: string; currency: string; timezone: string };
+  /** Saves a draft for the owner's inbox; returns its id. Absent outside a run. */
+  saveDraft?: (draft: DraftToSave) => Promise<string>;
 }
 
 export interface ToolDefinition<S extends z.ZodObject = z.ZodObject> {
@@ -193,16 +203,17 @@ export const TOOLS = [
       message: z.string().min(1).max(2000),
     }),
     summarize: (i) => `Draft a message for order ${i.orderId}`,
-    async run(input, { adapter }) {
+    async run(input, { adapter, saveDraft }) {
       const order = await adapter.getOrder(input.orderId);
-      return {
-        draft: {
-          orderNumber: order.number,
-          to: { name: order.customer.name, email: order.customer.email, phone: order.customer.phone },
-          message: input.message,
-        },
-        status: "Saved as a draft for the owner. Not sent.",
-      };
+      const to = { name: order.customer.name, email: order.customer.email, phone: order.customer.phone };
+      const draftId = await saveDraft?.({
+        kind: "CUSTOMER_MESSAGE",
+        targetId: order.id,
+        targetLabel: `Order ${order.number} · ${order.customer.name}`,
+        recipient: to,
+        body: input.message,
+      });
+      return { draftId, draft: { orderNumber: order.number, to, message: input.message }, status: "Saved in the owner's inbox. Not sent." };
     },
   }),
   tool({
@@ -215,9 +226,23 @@ export const TOOLS = [
     input: z.object({
       reviewId: id("review"),
       reply: z.string().min(1).max(2000),
+      reviewSummary: z
+        .string()
+        .max(200)
+        .optional()
+        .describe('Who wrote the review, its rating and gist, for the owner, e.g. "Meera, 2 stars: delivered late"'),
     }),
     summarize: (i) => `Draft a reply to review ${i.reviewId}`,
-    run: async (input) => ({ draft: input, status: "Saved as a draft for the owner. Not posted." }),
+    async run(input, { saveDraft }) {
+      const draftId = await saveDraft?.({
+        kind: "REVIEW_REPLY",
+        targetId: input.reviewId,
+        targetLabel: input.reviewSummary ? `Review · ${input.reviewSummary}` : `Review ${input.reviewId}`,
+        recipient: null,
+        body: input.reply,
+      });
+      return { draftId, draft: { reviewId: input.reviewId, reply: input.reply }, status: "Saved in the owner's inbox. Not posted." };
+    },
   }),
   tool({
     name: "update_order_status",
