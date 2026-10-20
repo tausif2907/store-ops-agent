@@ -39,6 +39,60 @@ services:
     ports:
       - "6380:6379"
 
+  # ---- WooCommerce test store (optional): docker compose --profile woo up -d ----
+  woo-db:
+    profiles: [woo]
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+      MARIADB_ROOT_PASSWORD: wordpress
+    volumes:
+      - woo-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      retries: 40
+
+  woo:
+    profiles: [woo]
+    image: wordpress:php8.3-apache
+    depends_on:
+      woo-db:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: woo-db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    ports:
+      - "8080:80"
+    extra_hosts:
+      # Lets WooCommerce deliver webhooks to the dashboard on the host.
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - woo-html:/var/www/html
+
+  # One-off setup and seeding: docker compose --profile woo run --rm woo-cli <script>
+  woo-cli:
+    profiles: [woo]
+    image: wordpress:cli-php8.3
+    depends_on:
+      - woo
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: woo-db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      HOME: /tmp
+    volumes:
+      - woo-html:/var/www/html
+      - ./docker/woo:/scripts:ro
+
 volumes:
   platform-data:
   boutique-data:
+  woo-db-data:
+  woo-html:

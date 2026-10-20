@@ -82,7 +82,7 @@ export function defineConformanceSuite(options: ConformanceOptions): void {
       await options.reset(dataset);
       adapter = await options.createAdapter();
       caps = new Set(await adapter.capabilities());
-    }, 120_000);
+    }, 600_000);
 
     afterAll(async () => {
       await adapter?.close();

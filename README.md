@@ -12,8 +12,8 @@ The agent decides what to look at and what to do, but every action passes a poli
 | 2 | MCP server, agent loop, streamed chat, run traces | Done |
 | 3 | Policy engine, approvals, audit log, kill switch | Done |
 | 4 | Shopify adapter | Done (conformance run needs a dev store: [setup](docs/shopify-setup.md)) |
-| 5 | WooCommerce adapter, custom REST connector spec | Next |
-| 6 | Autonomous jobs (BullMQ), email via Resend | |
+| 5 | WooCommerce adapter, custom REST connector spec | Done |
+| 6 | Autonomous jobs (BullMQ), email via Resend | Next |
 | 7 | Evals and hardening | |
 | 8 | Onboarding, deploy, launch polish | |
 
@@ -25,9 +25,13 @@ apps/
   agent/     Agent API: the agent loop (Claude), step and time limits, cost tracking, SSE stream
   mcp/       MCP server: the 12 store tools, routed to the run's store adapter through the policy check
   worker/    BullMQ job worker (Phase 6)
+examples/
+  custom-connector/  Sample implementation of the connector API (passes the conformance suite)
+docs/                Setup guides for Shopify, WooCommerce and custom connectors; the connector OpenAPI spec
 packages/
   shared/    Normalised types (zod), capabilities, AES-256-GCM credential encryption
-  adapters/  StoreAdapter interface, Supabase and Shopify adapters, canonical dataset, conformance suite
+  adapters/  StoreAdapter interface; Supabase, Shopify, WooCommerce and custom REST adapters;
+             connector API spec; canonical dataset; conformance suite
   tools/     The tool catalog, the policy engine, approvals (dashboard and email links)
   db/        Prisma schema, migrations with Row-Level Security, tenant-scoped clients
 ```
@@ -41,6 +45,8 @@ packages/
 - **Owners set the rules.** Each tool is Automatic, Ask me or Off, per store. Automatic writes can carry limits (largest coupon discount and uses, largest stock change, allowed order statuses, runs per day); a call over a limit becomes an approval that says which limit it broke. Approvals expire after 30 minutes and can be decided in the dashboard or from a signed one-time email link, which runs the exact saved arguments. **Pause the agent** stops every run and every change at once. Every change, rule edit, pause and decision lands in the store's append-only activity log.
 - **Limits per run:** 8 tool calls, 60 seconds, and a cost in rupees on every run (`agent_runs`, `usage`).
 - **Shopify stores** connect through Shopify's OAuth approval screen. The app uses expiring offline tokens; adapters refresh them and save the new tokens encrypted. Webhooks are verified by HMAC, stored per store, and `app/uninstalled` marks the connection revoked. Every GraphQL document is validated in tests against Shopify's Admin API schema (2026-10). See [docs/shopify-setup.md](docs/shopify-setup.md).
+- **WooCommerce stores** connect with REST API keys (Basic auth over HTTPS, signed OAuth 1.0a over HTTP). Webhooks go to a per-store URL and are verified with a secret the adapter creates. See [docs/woocommerce-setup.md](docs/woocommerce-setup.md).
+- **Custom-built stores** implement the connector API ([docs/custom-connector.md](docs/custom-connector.md)); the OpenAPI spec is generated from the same schemas the platform validates with, and a sample implementation passes the conformance suite.
 - **Supabase stores** are reached as a restricted `agent_role` that can only execute the `agent_api` functions — never read tables. See `packages/adapters/src/supabase/boutique-reference.sql`.
 
 ## Local development
@@ -74,7 +80,7 @@ pnpm typecheck
 ```
 
 - `packages/db` — tenant isolation: owner A tries to read and write store B's rows by every route. Pass condition: zero leaks.
-- `packages/adapters` — the conformance suite (`src/testing/conformance.ts`), run against every adapter with the same canonical dataset. Pass condition: 100%. Shopify adds schema validation of every query, unit tests against a fake Shopify (OAuth, webhook signatures, token refresh, throttling, mapping), and the same conformance suite against a seeded development store when one is configured.
+- `packages/adapters` — the conformance suite (`src/testing/conformance.ts`), run against every adapter with the same canonical dataset. Pass condition: 100%. Shopify adds schema validation of every query, unit tests against a fake Shopify (OAuth, webhook signatures, token refresh, throttling, mapping), and the same conformance suite against a seeded development store when one is configured. WooCommerce runs the suite against a real WooCommerce in Docker (`pnpm --filter @store-ops/adapters test:woo`). The sample custom connector runs it on every test run.
 - `packages/shared` — credential encryption, store-time-zone periods.
 - `packages/tools` — the policy engine (modes, every limit, kill switch, fail-closed on bad limits) and approvals against the boutique: approve runs once, reject changes nothing, expiry, pause, cross-store refusal, signed links.
 - `apps/mcp` — the MCP server over HTTP with a real MCP client: tool listing, approvals, Auto writes and audit, Never, kill switch, cross-store runs refused.

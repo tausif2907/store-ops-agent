@@ -7,14 +7,18 @@
     ".": "./src/index.ts",
     "./testing": "./src/testing/conformance.ts",
     "./dataset": "./src/testing/dataset.ts",
-    "./supabase-seed": "./src/supabase/seed.ts"
+    "./supabase-seed": "./src/supabase/seed.ts",
+    "./custom-rest-spec": "./src/custom-rest/spec.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "dotenv -e ../../.env -- vitest run",
     "boutique:reset": "dotenv -e ../../.env -- tsx scripts/boutique-reset.ts",
     "shopify:schema": "tsx scripts/fetch-shopify-schema.ts",
-    "shopify:seed": "dotenv -e ../../.env -- tsx scripts/shopify-seed.ts"
+    "shopify:seed": "dotenv -e ../../.env -- tsx scripts/shopify-seed.ts",
+    "test:woo": "dotenv -e ../../.env -v WOO_CONFORMANCE=1 -- vitest run test/woocommerce.conformance.test.ts",
+    "woo:seed": "dotenv -e ../../.env -- tsx scripts/woo-seed.ts",
+    "connector:spec": "tsx scripts/connector-spec.ts"
   },
   "dependencies": {
     "@store-ops/shared": "workspace:*",

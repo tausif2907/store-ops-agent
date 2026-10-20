@@ -95,3 +95,23 @@ Shopify's Admin API schema is downloaded (as SDL) for the pinned version and com
 ## 20. Webhooks are stored, not acted on, until the worker exists
 
 The receiver verifies the HMAC over the raw body, finds the store through a `SECURITY DEFINER` lookup by shop domain, and stores the event once per delivery id (`webhook_events`, RLS like every tenant table). `app/uninstalled` marks the connection revoked. Compliance requests are logged to the activity log; the job worker (Phase 6) will act on stored events.
+
+## 21. WooCommerce: tested against a real store in Docker
+
+WordPress + WooCommerce run under a `woo` compose profile, set up by WP-CLI. The REST API cannot backdate orders or set order numbers, so the dataset is loaded by a PHP script through WP-CLI (`docker/woo/seed.php`), and the local store emulates a sequential order numbers plugin (common on live stores) through a must-use plugin. The conformance suite reseeds and runs against it on demand (`test:woo`); it is opt-in because reseeding takes a few minutes.
+
+## 22. WooCommerce: how the normalised model maps
+
+- Statuses: pending/on-hold → pending; processing → processing, or ready with the `store_ops_status` meta; completed → shipped, or delivered with the meta; cancelled/failed → cancelled; refunded. Like Shopify, cancelling and refunding stay in WooCommerce admin. Note that moving an order to completed makes WooCommerce email the customer, as it would from wp-admin.
+- Every product is listed with its variations (one `/variations?parent=…` request per page); a simple product is its own single variant.
+- Draft coupons are invisible to the REST API, so "switched off" means expired. Coupons have no start date.
+- Reviews are read-only: the reviews API cannot post replies. A reply made in wp-admin is an ordinary comment under the review, read from WordPress's public comments endpoint.
+- Filters the API cannot express exactly (normalised status, overdue, low stock per variant, exact time bounds) are applied by the adapter while paging, with cursors of the form `perPage:page:index`.
+
+## 23. WooCommerce webhooks: a URL per store, a secret per store
+
+Deliveries go to `/api/webhooks/woocommerce/<store id>`; the receiver verifies `X-WC-Webhook-Signature` with that store's secret, which the adapter creates when it subscribes and stores encrypted alongside the API keys. No lookup by site URL is needed, and a leaked secret affects one store.
+
+## 24. Custom stores: a connector API generated from the platform's schemas
+
+The connector API's OpenAPI 3.1 document is built from the same zod schemas the adapter validates responses with, published at `docs/connector/openapi.json` (a test fails if it drifts) and served at `/connector/openapi.json`. Its semantics are the conformance suite's: the sample implementation in `examples/custom-connector` passes it on every test run, so "implements the spec" is checked behaviour, not a promise. Version 1 has no webhooks; polling covers custom stores until a signed-delivery design is needed.

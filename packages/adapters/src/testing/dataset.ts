@@ -134,7 +134,7 @@ export function buildDataset(now: Date = new Date()): Dataset {
     const variantTitles = madeToOrder ? ["Custom fit"] : SIZES.slice(0, int(1, 4));
     return {
       key: `p${i + 1}`,
-      title: `${fabric} ${garment}`,
+      title: garment.startsWith(fabric) ? garment : `${fabric} ${garment}`,
       status: i % 17 === 16 ? "draft" : "active",
       variants: variantTitles.map((title, v) => ({
         key: `p${i + 1}v${v + 1}`,
@@ -218,4 +218,14 @@ export function variantOf(dataset: Dataset, productKey: string, variantKey: stri
   const variant = dataset.products.find((p) => p.key === productKey)?.variants.find((v) => v.key === variantKey);
   if (!variant) throw new Error(`Unknown variant ${productKey}/${variantKey}`);
   return variant;
+}
+
+/**
+ * When a promised date is due: the end of that day in India, the boutique's
+ * time zone (so every test store agrees on which orders are overdue).
+ */
+export function promisedAtIso(date: string): string {
+  const d = new Date(`${date}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return new Date(d.getTime() - 5.5 * 3_600_000).toISOString();
 }

@@ -1,6 +1,6 @@
 import type { OrderStatus } from "@store-ops/shared";
 import { AdapterError } from "../adapter";
-import { DATASET_COUNTS, buildDataset, variantOf, type Dataset } from "../testing/dataset";
+import { DATASET_COUNTS, buildDataset, promisedAtIso, variantOf, type Dataset } from "../testing/dataset";
 import type { ShopifyAdapter } from "./adapter";
 import type { ShopifyClient } from "./client";
 import { fromMinorUnits } from "./mappers";
@@ -45,12 +45,6 @@ export async function datasetAnchor(client: ShopifyClient): Promise<Date | null>
   return shop.metafield ? new Date(shop.metafield.value) : null;
 }
 
-/** End of the promised day in India, matching the boutique reference store. */
-function promisedAt(date: string): string {
-  const d = new Date(`${date}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return new Date(d.getTime() - 5.5 * 3_600_000).toISOString();
-}
 
 export async function seedShopifyStore(client: ShopifyClient, options: SeedOptions = {}): Promise<Date> {
   const log = options.log ?? (() => {});
@@ -134,7 +128,7 @@ export async function seedShopifyStore(client: ShopifyClient, options: SeedOptio
             priceSet: { shopMoney: { amount: fromMinorUnits(variantOf(dataset, item.productKey, item.variantKey).pricePaise, "INR"), currencyCode: "INR" } },
           })),
           metafields: o.promisedDate
-            ? [{ namespace: Q.METAFIELD_NAMESPACE, key: "promised_at", type: "date_time", value: promisedAt(o.promisedDate) }]
+            ? [{ namespace: Q.METAFIELD_NAMESPACE, key: "promised_at", type: "date_time", value: promisedAtIso(o.promisedDate) }]
             : [],
           ...(shipped
             ? {

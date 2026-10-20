@@ -1,8 +1,11 @@
 import type { Platform } from "@store-ops/shared";
-import { AdapterError, type StoreAdapter } from "./adapter";
+import type { StoreAdapter } from "./adapter";
 import { ShopifyAdapter } from "./shopify/adapter";
 import { ShopifyCredentials } from "./shopify/client";
 import { SupabaseAdapter, SupabaseCredentials } from "./supabase/adapter";
+import { CustomRestAdapter, CustomRestCredentials } from "./custom-rest/adapter";
+import { WooAdapter } from "./woocommerce/adapter";
+import { WooCredentials } from "./woocommerce/client";
 
 export * from "./adapter";
 export { SupabaseAdapter, SupabaseCredentials } from "./supabase/adapter";
@@ -10,9 +13,13 @@ export { ShopifyAdapter } from "./shopify/adapter";
 export { ShopifyCredentials, appConfigFromEnv } from "./shopify/client";
 export * as shopifyOAuth from "./shopify/oauth";
 export { SHOPIFY_API_VERSION } from "./shopify/version";
+export { WooAdapter } from "./woocommerce/adapter";
+export { CustomRestAdapter, CustomRestCredentials } from "./custom-rest/adapter";
+export { CONNECTOR_VERSION, buildConnectorSpec } from "./custom-rest/spec";
+export { WooCredentials, verifyWooWebhook, wooOAuthSignature } from "./woocommerce/client";
 
 /** Platforms that can be connected today. */
-export const AVAILABLE_PLATFORMS: readonly Platform[] = ["SUPABASE", "SHOPIFY"];
+export const AVAILABLE_PLATFORMS: readonly Platform[] = ["SUPABASE", "SHOPIFY", "WOOCOMMERCE", "CUSTOM_REST"];
 
 export interface AdapterOptions {
   /** Called when the adapter refreshes its credentials (Shopify tokens), to store them. */
@@ -21,6 +28,11 @@ export interface AdapterOptions {
   reloadCredentials?: () => Promise<unknown>;
   /** Public HTTPS URL for platform webhooks. */
   webhookUrl?: string;
+}
+
+/** Base URL platforms deliver webhooks to (WEBHOOK_BASE_URL, else APP_URL). */
+export function webhookBaseUrl(): string | undefined {
+  return (process.env.WEBHOOK_BASE_URL ?? process.env.APP_URL)?.replace(/\/$/, "");
 }
 
 /** Where Shopify should post webhooks, when the app has a public HTTPS URL. */
@@ -49,8 +61,12 @@ export function createAdapter(platform: Platform, credentials: unknown, options:
         webhookUrl: options.webhookUrl ?? shopifyWebhookUrl(),
       });
     case "WOOCOMMERCE":
+      return new WooAdapter(WooCredentials.parse(credentials), {
+        webhookUrl: options.webhookUrl,
+        onCredentialsChange: options.onCredentialsChange,
+      });
     case "CUSTOM_REST":
-      throw new AdapterError("UNSUPPORTED", `${platform} stores are not supported yet`);
+      return new CustomRestAdapter(CustomRestCredentials.parse(credentials));
   }
 }
 
