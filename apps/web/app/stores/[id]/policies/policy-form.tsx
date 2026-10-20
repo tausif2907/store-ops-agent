@@ -20,6 +20,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_order: "Read an order",
   sales_summary: "Sales summaries",
   low_stock_products: "Check stock",
+  search_products: "Search products",
   search_reviews: "Read reviews",
   list_coupons: "List coupons",
   draft_customer_message: "Draft customer messages",

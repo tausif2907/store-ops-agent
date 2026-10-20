@@ -73,6 +73,8 @@ model Store {
   currency   String   @db.Char(3)
   timezone   String
   isPaused   Boolean  @default(false) @map("is_paused")
+  /// Most the agent may spend on this store in a calendar month (UTC), in rupees. Null uses the platform default.
+  monthlyBudgetInr Decimal? @map("monthly_budget_inr") @db.Decimal(10, 2)
   /// The platform's own id for the store (Shopify: the myshopify.com domain).
   externalId String?  @map("external_id")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)

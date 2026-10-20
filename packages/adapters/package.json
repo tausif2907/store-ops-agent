@@ -8,7 +8,8 @@
     "./testing": "./src/testing/conformance.ts",
     "./dataset": "./src/testing/dataset.ts",
     "./supabase-seed": "./src/supabase/seed.ts",
-    "./custom-rest-spec": "./src/custom-rest/spec.ts"
+    "./custom-rest-spec": "./src/custom-rest/spec.ts",
+    "./woo-seed": "./src/woocommerce/seed.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

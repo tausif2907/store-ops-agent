@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { AdapterError, type AdapterErrorCode } from "../adapter";
+import { backoffDelay, bucketFor, parseRetryAfter, platformRate, realClock, type Clock } from "../rate-limit";
 
 /**
  * Minimal WooCommerce REST API (v3) client.
@@ -22,7 +23,7 @@ export type WooCredentials = z.infer<typeof WooCredentials>;
 
 export interface WooClientOptions {
   fetch?: typeof fetch;
-  sleep?: (ms: number) => Promise<void>;
+  clock?: Clock;
   maxRetries?: number;
 }
 
@@ -67,10 +68,14 @@ export class WooClient {
 
   async request<T>(method: "GET" | "POST" | "PUT" | "DELETE", path: string, query: Query = {}, body?: unknown): Promise<WooResponse<T>> {
     const fetchImpl = this.options.fetch ?? fetch;
-    const sleep = this.options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+    const clock = this.options.clock ?? realClock;
     const maxRetries = this.options.maxRetries ?? 3;
+    // WooCommerce has no published limit, but hosts do: stay at a polite rate per site.
+    const rate = platformRate("WOO_REQUESTS_PER_SECOND", 5);
+    const bucket = bucketFor(`woo:${this.credentials.url}`, rate * 2, rate, clock);
 
     for (let attempt = 0; ; attempt++) {
+      await bucket.take();
       const { url, headers } = this.sign(method, path, query);
       let res: Response;
       try {
@@ -81,14 +86,14 @@ export class WooClient {
         });
       } catch (err) {
         if (attempt < maxRetries) {
-          await sleep(500 * 2 ** attempt);
+          await clock.sleep(backoffDelay(attempt));
           continue;
         }
         throw new AdapterError("UNAVAILABLE", `Could not reach ${this.credentials.url}`, { cause: err, retryAfterMs: 5_000 });
       }
 
       if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
-        await sleep(Number(res.headers.get("retry-after")) * 1000 || 500 * 2 ** attempt);
+        await clock.sleep(backoffDelay(attempt, parseRetryAfter(res.headers.get("retry-after"), clock.now())));
         continue;
       }
 

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { dbForUser } from "@store-ops/db";
 import { formatDateTime } from "@/lib/format";
-import { JOBS, type JobType } from "@store-ops/tools";
+import { JOBS, budgetStatus, type JobType } from "@store-ops/tools";
+import { setBudget } from "@/lib/automation-actions";
+import { BudgetForm } from "./budget-form";
 import { requireUser } from "@/lib/session";
 import { RunStatusBadge } from "./status-badge";
 
@@ -10,24 +12,21 @@ export default async function RunsPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const user = await requireUser();
   const db = dbForUser(user.id);
-  const store = await db.store.findUnique({ where: { id }, select: { id: true, name: true, timezone: true } });
+  const store = await db.store.findUnique({ where: { id }, select: { id: true, name: true, timezone: true, monthlyBudgetInr: true } });
   if (!store) notFound();
-  const month = new Date().toISOString().slice(0, 7);
-  const [runs, usage] = await Promise.all([
+  const [runs, budget] = await Promise.all([
     db.agentRun.findMany({
       where: { storeId: store.id },
       orderBy: { createdAt: "desc" },
       take: 50,
       include: { _count: { select: { toolCalls: true } } },
     }),
-    db.usage.findUnique({ where: { storeId_month: { storeId: store.id, month } } }),
+    budgetStatus(db, store.id),
   ]);
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-500">
-        This month: {usage?.runs ?? 0} runs · ₹{Number(usage?.costInr ?? 0).toFixed(2)}
-      </p>
+      <BudgetForm budget={{ ...budget, custom: store.monthlyBudgetInr !== null }} action={setBudget.bind(null, store.id)} />
 
       {runs.length === 0 ? (
         <div className="card text-sm text-slate-600">

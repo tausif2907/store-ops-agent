@@ -123,3 +123,19 @@ export async function decideDraft(storeId: string, draftId: string, decision: Dr
     await adapter.close();
   }
 }
+
+/** Sets the store's monthly agent budget in rupees; empty restores the default. */
+export async function setBudget(storeId: string, _prev: AutomationFormState, form: FormData): Promise<AutomationFormState> {
+  const { user, db, store } = await ownedStore(storeId);
+  const raw = String(form.get("budget") ?? "").trim();
+  const value = raw === "" ? null : Number(raw);
+  if (value !== null && (!Number.isFinite(value) || value < 0 || value > 1_000_000)) {
+    return { error: "Enter an amount in rupees, from 0 to 10,00,000." };
+  }
+  await db.store.update({ where: { id: storeId }, data: { monthlyBudgetInr: value === null ? null : Math.round(value * 100) / 100 } });
+  await db.auditLog.create({
+    data: { storeId, actor: `user:${user.id}`, action: "budget.updated", before: toJson({ monthlyBudgetInr: store.monthlyBudgetInr }), after: toJson({ monthlyBudgetInr: value }) },
+  });
+  revalidatePath(`/stores/${storeId}`, "layout");
+  return { saved: true };
+}

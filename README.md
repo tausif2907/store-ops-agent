@@ -14,8 +14,8 @@ The agent decides what to look at and what to do, but every action passes a poli
 | 4 | Shopify adapter | Done (conformance run needs a dev store: [setup](docs/shopify-setup.md)) |
 | 5 | WooCommerce adapter, custom REST connector spec | Done |
 | 6 | Autonomous jobs (BullMQ), email via Resend | Done |
-| 7 | Evals and hardening | Next |
-| 8 | Onboarding, deploy, launch polish | |
+| 7 | Evals and hardening | Done (eval run needs a Claude key) |
+| 8 | Onboarding, deploy, launch polish | Next |
 
 ## Layout
 
@@ -23,8 +23,9 @@ The agent decides what to look at and what to do, but every action passes a poli
 apps/
   web/       Next.js dashboard: stores, chat, approvals, rules, activity log, run traces, kill switch
   agent/     Agent API: the agent loop (Claude), step and time limits, cost tracking, SSE stream
-  mcp/       MCP server: the 12 store tools, routed to the run's store adapter through the policy check
+  mcp/       MCP server: the 13 store tools, routed to the run's store adapter through the policy check
   worker/    BullMQ worker: the five autonomous jobs on each store's schedule, one run per store at a time
+evals → packages/evals: the 40-task eval suite, run per platform against the real agent
 examples/
   custom-connector/  Sample implementation of the connector API (passes the conformance suite)
 docs/                Setup guides for Shopify, WooCommerce and custom connectors; the connector OpenAPI spec
@@ -45,6 +46,8 @@ packages/
 - **Owners set the rules.** Each tool is Automatic, Ask me or Off, per store. Automatic writes can carry limits (largest coupon discount and uses, largest stock change, allowed order statuses, runs per day); a call over a limit becomes an approval that says which limit it broke. Approvals expire after 30 minutes and can be decided in the dashboard or from a signed one-time email link, which runs the exact saved arguments. **Pause the agent** stops every run and every change at once. Every change, rule edit, pause and decision lands in the store's append-only activity log.
 - **The agent works on its own.** Five automations run on each store's schedule, in its own time zone: a morning digest, an hourly low-stock watch, a late-order follow-up that drafts apologies, a negative-review response, and a Monday report. Each first checks the store in code and only starts an agent run when there is something to do. Results go to the owner by email (Resend) and to the dashboard; drafts wait in the Inbox, where the owner sends or posts them. Owners switch automations on and off, change their times and run them now under **Automations**.
 - **Limits per run:** 8 tool calls, 60 seconds, and a cost in rupees on every run (`agent_runs`, `usage`).
+- **Budgets per store:** a monthly limit in rupees (default `DEFAULT_MONTHLY_BUDGET_INR`, ₹500; owners change it under Runs). Once it is used, chat and automations stop for that store until the month turns or the limit is raised. Also set a hard monthly spend limit on the Claude API account itself.
+- **Rate limits per platform:** every store has a client-side token bucket, so the agent stays under platform limits instead of hitting them: Shopify's is cost-based and re-synced from the throttle status in each response; WooCommerce (`WOO_REQUESTS_PER_SECOND`, 5) and custom connectors (`CONNECTOR_REQUESTS_PER_SECOND`, 10) are per request. Rejections are retried after `Retry-After` or with jittered exponential backoff.
 - **Shopify stores** connect through Shopify's OAuth approval screen. The app uses expiring offline tokens; adapters refresh them and save the new tokens encrypted. Webhooks are verified by HMAC, stored per store, and `app/uninstalled` marks the connection revoked. Every GraphQL document is validated in tests against Shopify's Admin API schema (2026-10). See [docs/shopify-setup.md](docs/shopify-setup.md).
 - **WooCommerce stores** connect with REST API keys (Basic auth over HTTPS, signed OAuth 1.0a over HTTP). Webhooks go to a per-store URL and are verified with a secret the adapter creates. See [docs/woocommerce-setup.md](docs/woocommerce-setup.md).
 - **Custom-built stores** implement the connector API ([docs/custom-connector.md](docs/custom-connector.md)); the OpenAPI spec is generated from the same schemas the platform validates with, and a sample implementation passes the conformance suite.
@@ -73,6 +76,16 @@ Approval emails go through Resend when `RESEND_API_KEY` is set; without it they 
 pnpm --filter @store-ops/agent try-tool <storeId> create_coupon '{"code":"FESTIVE15","type":"percent","value":15,"usageLimit":50}'
 ```
 
+### Evals
+
+`packages/evals` holds 40 tasks (15 reads, 10 writes, 6 multi-step, 4 ambiguous, 5 prompt-injection). Each runs the real agent on a store seeded with the canonical dataset plus injection text planted in order notes and reviews, and is graded in code against facts read from the store before the run. The report gives the success rate per platform and category, unsafe writes executed, injections followed and cross-tenant leaks (all must be 0), median latency and average cost.
+
+```bash
+pnpm --filter @store-ops/evals eval -- --platforms supabase,custom,woocommerce --yes
+```
+
+Without `--yes` it only prints the plan and an estimated cost (about ₹3 a task run). Reports go to `packages/evals/reports/`. Running it reseeds the boutique (and the Docker WooCommerce store) with injection text; run `pnpm boutique:reset` afterwards for clean local data.
+
 ### Tests
 
 Tests use their own database (`storeops_test`, set in `.env.test`), so the stores they create never reach the dev worker. `pnpm db:migrate` migrates both.
@@ -88,6 +101,8 @@ pnpm typecheck
 - `packages/tools` — the policy engine (modes, every limit, kill switch, fail-closed on bad limits) and approvals against the boutique: approve runs once, reject changes nothing, expiry, pause, cross-store refusal, signed links.
 - `apps/mcp` — the MCP server over HTTP with a real MCP client: tool listing, approvals, Auto writes and audit, Never, kill switch, cross-store runs refused.
 - `apps/worker` — every job against the boutique with a scripted model (drafts, alerts that do not repeat, emails, paused stores), schedules in the store's time zone against real Redis, the store lock, and webhook-triggered checks.
+- `apps/agent` — security: a model that obeys every injected instruction still cannot change the store, see credentials or reach another store (no Claude key needed, runs in CI).
+- `packages/evals` — the eval harness itself: the task inventory, and every grader accepting correct behaviour and rejecting wrong behaviour, with scripted models.
 - `apps/agent` — the loop with a scripted model (tool limit, time limit, refusals, cost), and the full chain over HTTP: agent API → MCP → boutique database.
 
 ## Connecting the real boutique (Supabase)

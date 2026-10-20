@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { dbForStore } from "@store-ops/db";
+import { budgetStatus } from "@store-ops/tools";
 import type { AgentEvent, ChatTurn } from "@store-ops/shared";
 import { RunLimitError, runAgentLoop, type LoopLimits, type ModelClient, type ToolClient } from "./loop";
 import { usdToInr } from "./pricing";
@@ -53,6 +54,14 @@ export async function runAgent(input: RunInput, emit: (event: AgentEvent) => voi
     emit({ type: "error", message });
     return { runId: run.id, status: "CANCELLED", output: null, error: message };
   }
+  const budget = await budgetStatus(db, store.id);
+  if (budget.exhausted) {
+    const message = `This store has used its monthly agent budget (₹${budget.limitInr.toFixed(0)}). Raise it under Runs, or wait for next month.`;
+    await db.agentRun.update({ where: { id: run.id }, data: { status: "CANCELLED", error: message, finishedAt: new Date() } });
+    emit({ type: "error", message });
+    return { runId: run.id, status: "CANCELLED", output: null, error: message };
+  }
+
 
   let tools: Awaited<ReturnType<RunDeps["connectTools"]>> | undefined;
   let outcome: RunOutcome;

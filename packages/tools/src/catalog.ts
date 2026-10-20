@@ -11,7 +11,7 @@ import {
 } from "@store-ops/shared";
 
 /**
- * The twelve platform-neutral tools the agent can use. Every tool declares
+ * The platform-neutral tools the agent can use. Every tool declares
  * its type, default policy and the capability the connected store needs.
  * Refunds, price changes, deletes and emailing customers are deliberately not
  * tools, so the agent cannot do them even by mistake.
@@ -155,6 +155,24 @@ export const TOOLS = [
       const threshold = input.threshold ?? 3;
       const page = await adapter.listProducts({ lowStockThreshold: threshold, limit: input.limit ?? 50 });
       return { threshold, products: page.items.map((p) => lowStockView(p, threshold)), more: page.nextCursor !== null };
+    },
+  }),
+  tool({
+    name: "search_products",
+    description:
+      "Find products by text in the title or a variant SKU, with every variant's price and stock (null stock = made to order, not tracked). Use low_stock_products to find what is running low.",
+    type: "read",
+    defaultMode: "AUTO",
+    capability: "inventory",
+    untrustedText: false,
+    input: z.object({
+      query: z.string().min(1).describe("Words from the product title, or a SKU"),
+      limit: z.number().int().min(1).max(25).optional().describe("Default 10"),
+    }),
+    summarize: (i) => `Search products for "${i.query}"`,
+    async run(input, { adapter }) {
+      const page = await adapter.listProducts({ query: input.query, limit: input.limit ?? 10 });
+      return { products: page.items, more: page.nextCursor !== null };
     },
   }),
   tool({

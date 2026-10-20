@@ -16,6 +16,7 @@ import {
   type WebhookEvent,
 } from "@store-ops/shared";
 import { AdapterError, type AdapterErrorCode, type StoreAdapter } from "../adapter";
+import { backoffDelay, bucketFor, parseRetryAfter, platformRate, realClock, type Clock } from "../rate-limit";
 import { parseInput } from "../validation";
 import { CapabilitiesResponse, ConnectorError, CouponList } from "./spec";
 
@@ -28,7 +29,7 @@ export type CustomRestCredentials = z.infer<typeof CustomRestCredentials>;
 
 export interface CustomRestOptions {
   fetch?: typeof fetch;
-  sleep?: (ms: number) => Promise<void>;
+  clock?: Clock;
   maxRetries?: number;
 }
 
@@ -135,10 +136,13 @@ export class CustomRestAdapter implements StoreAdapter {
     const url = new URL(`${this.credentials.baseUrl}${path}`);
     for (const [k, v] of Object.entries(query)) if (v !== undefined) url.searchParams.set(k, String(v));
     const fetchImpl = this.options.fetch ?? fetch;
-    const sleep = this.options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+    const clock = this.options.clock ?? realClock;
     const maxRetries = this.options.maxRetries ?? 3;
+    const rate = platformRate("CONNECTOR_REQUESTS_PER_SECOND", 10);
+    const bucket = bucketFor(`custom:${this.credentials.baseUrl}`, rate * 2, rate, clock);
 
     for (let attempt = 0; ; attempt++) {
+      await bucket.take();
       let res: Response;
       try {
         res = await fetchImpl(url, {
@@ -153,13 +157,13 @@ export class CustomRestAdapter implements StoreAdapter {
         });
       } catch (err) {
         if (attempt < maxRetries) {
-          await sleep(500 * 2 ** attempt);
+          await clock.sleep(backoffDelay(attempt));
           continue;
         }
         throw new AdapterError("UNAVAILABLE", `Could not reach ${url.origin}`, { cause: err, retryAfterMs: 5_000 });
       }
       if ((res.status === 429 || res.status >= 500) && res.status !== 501 && attempt < maxRetries) {
-        await sleep(Number(res.headers.get("retry-after")) * 1000 || 500 * 2 ** attempt);
+        await clock.sleep(backoffDelay(attempt, parseRetryAfter(res.headers.get("retry-after"), clock.now())));
         continue;
       }
 
@@ -173,7 +177,7 @@ export class CustomRestAdapter implements StoreAdapter {
         const parsed = ConnectorError.safeParse(json);
         const code: AdapterErrorCode = parsed.success ? parsed.data.error.code : res.status === 401 ? "AUTH" : res.status === 404 ? "NOT_FOUND" : "UNAVAILABLE";
         throw new AdapterError(code, parsed.success ? parsed.data.error.message : `The connector returned ${res.status}`, {
-          retryAfterMs: Number(res.headers.get("retry-after")) * 1000 || undefined,
+          retryAfterMs: parseRetryAfter(res.headers.get("retry-after")) ?? undefined,
         });
       }
       const parsed = schema.safeParse(json);

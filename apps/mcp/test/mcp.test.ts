@@ -77,13 +77,13 @@ describe("MCP server", () => {
     await expect(connect(await newRun(), storeId, "wrong".padEnd(40, "x"))).rejects.toThrow();
   });
 
-  it("lists all twelve tools for a fully capable store", async () => {
+  it("lists all thirteen tools for a fully capable store", async () => {
     const client = await connect(await newRun());
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
         "create_coupon", "draft_customer_message", "draft_review_reply", "get_order", "list_coupons", "low_stock_products",
-        "reply_to_review", "sales_summary", "search_orders", "search_reviews", "update_order_status", "update_stock",
+        "reply_to_review", "sales_summary", "search_orders", "search_products", "search_reviews", "update_order_status", "update_stock",
       ].sort(),
     );
     const search = tools.find((t) => t.name === "search_orders")!;

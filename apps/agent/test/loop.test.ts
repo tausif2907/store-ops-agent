@@ -181,6 +181,25 @@ describe("runChat trace", () => {
     expect(events.at(-1)).toMatchObject({ type: "done", toolCalls: 1 });
   });
 
+  it("stops running once the store's monthly budget is used, until it is raised", async () => {
+    const owner = await createUser(`agent-${randomUUID().slice(0, 8)}@test.local`, "Agent Owner", "x");
+    const store = await dbForUser(owner).store.create({
+      data: { ownerId: owner, platform: "SUPABASE", name: "Budget", currency: "INR", timezone: "UTC", monthlyBudgetInr: 1 },
+    });
+    const month = new Date().toISOString().slice(0, 7);
+    await dbForStore(store.id).usage.create({ data: { storeId: store.id, month, runs: 3, tokens: 1000, costInr: 1.25 } });
+    const { model, requests } = scripted([reply([{ type: "text", text: "Hi" }])]);
+    const events: AgentEvent[] = [];
+    const runId = await runChat({ storeId: store.id, message: "Hi", history: [] }, (e) => events.push(e), { model, connectTools: async () => fakeTools() });
+    expect(requests).toHaveLength(0);
+    expect(await dbForStore(store.id).agentRun.findUniqueOrThrow({ where: { id: runId } })).toMatchObject({ status: "CANCELLED" });
+    expect(events.at(-1)).toMatchObject({ type: "error", message: expect.stringMatching(/monthly agent budget/) });
+
+    await dbForStore(store.id).store.update({ where: { id: store.id }, data: { monthlyBudgetInr: 100 } });
+    await runChat({ storeId: store.id, message: "Hi", history: [] }, () => {}, { model, connectTools: async () => fakeTools() });
+    expect(requests).toHaveLength(1);
+  });
+
   it("does not run for a paused store", async () => {
     const owner = await createUser(`agent-${randomUUID().slice(0, 8)}@test.local`, "Agent Owner", "x");
     const store = await dbForUser(owner).store.create({

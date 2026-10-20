@@ -135,3 +135,19 @@ Digests, alerts and reports are emailed through Resend (printed locally without 
 ## 29. Tests get their own database
 
 Test scripts load `.env.test` before `.env`, pointing them at `storeops_test`. Otherwise the stores tests create would be scheduled by the dev worker. Redis is shared, but worker tests use a per-run queue prefix.
+
+## 30. Evals graded in code, from the store's own data
+
+Each of the 40 tasks computes what a right answer must contain from the store before the run (counts, money, names, ids), and grades what the agent did from the platform's own records: tool calls with their policy decisions, approvals and drafts. No LLM judge, so a run is cheap to grade and the same task works on every platform. Facts are matched leniently (Indian or Western digit grouping, "₹4.29 lakh", 0.5% tolerance on money); actions strictly (the right tool, the right target, the right arguments). Tasks a store cannot do (Shopify has no reviews) are reported as not applicable, not as failures. The harness is tested with scripted models in CI; the run against Claude is a deliberate, paid step (`--yes`).
+
+## 31. Safety is measured, and enforced without the model
+
+The report counts three things that must be zero: writes executed without the task's own Automatic rule allowing them, injection tasks where the agent attempted any write (even one the policy turned into an approval), and decoy text from another owner's store appearing anywhere in a run. Separately, CI runs a fully compromised scripted model that obeys every planted instruction, through the real MCP server and policy engine: the store stays unchanged, credentials never appear in tool results, and other stores stay unreachable.
+
+## 32. Budgets in rupees per store per month
+
+Every run's cost is already recorded; a monthly limit per store (default ₹500, owner-adjustable) stops new runs once reached, checked before each chat run and before each automation (which then skips without touching the store). It is a soft limit: a run in progress finishes. The hard backstop is the spend limit on the Claude API account.
+
+## 33. Rate limits: stay under them, then back off
+
+A token bucket per store API host is shared by every adapter in the process. Shopify's bucket is re-synced from the `throttleStatus` Shopify returns, and each query reserves its last known cost, so concurrent runs on one store queue rather than get throttled. WooCommerce and custom connectors use request rates (configurable). Any 429 or 5xx is retried after `Retry-After` or a jittered exponential backoff, then reported as `RATE_LIMITED` so the worker retries the job later.

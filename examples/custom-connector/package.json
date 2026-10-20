@@ -17,5 +17,8 @@
   "devDependencies": {
     "tsx": "4.23.15",
     "vitest": "3.2.7"
+  },
+  "exports": {
+    "./server": "./src/server.ts"
   }
 }

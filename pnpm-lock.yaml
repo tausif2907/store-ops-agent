@@ -32,6 +32,9 @@ importers:
       '@store-ops/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@store-ops/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -243,6 +246,43 @@ importers:
       prisma:
         specifier: 6.19.3
         version: 6.19.3(typescript@5.9.3)
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)
+
+  packages/evals:
+    dependencies:
+      '@store-ops/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@store-ops/agent':
+        specifier: workspace:*
+        version: link:../../apps/agent
+      '@store-ops/db':
+        specifier: workspace:*
+        version: link:../db
+      '@store-ops/example-connector':
+        specifier: workspace:*
+        version: link:../../examples/custom-connector
+      '@store-ops/mcp':
+        specifier: workspace:*
+        version: link:../../apps/mcp
+      '@store-ops/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@store-ops/tools':
+        specifier: workspace:*
+        version: link:../tools
+    devDependencies:
+      '@anthropic-ai/sdk':
+        specifier: 0.135.0
+        version: 0.135.0(zod@4.6.7)
+      dotenv-cli:
+        specifier: 8.0.0
+        version: 8.0.0
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
       vitest:
         specifier: 3.2.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)

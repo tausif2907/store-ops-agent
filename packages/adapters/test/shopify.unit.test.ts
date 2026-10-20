@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { resetBuckets, type Clock } from "../src/rate-limit";
 import { ShopifyAdapter } from "../src/shopify/adapter";
 import { ShopifyClient, type ShopifyCredentials } from "../src/shopify/client";
 import { mapCoupon, mapOrder, orderStatus, toMinorUnits, type RawOrder } from "../src/shopify/mappers";
@@ -34,7 +35,13 @@ function fakeFetch(...handlers: Handler[]) {
 }
 
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
-const noSleep = async () => {};
+/** A clock whose sleep advances time instantly, recording each wait. */
+function fakeClock(waits?: number[]): Clock {
+  let t = Date.now();
+  return { now: () => t, sleep: async (ms) => { waits?.push(ms); t += ms; } };
+}
+
+beforeEach(() => resetBuckets());
 
 function rawOrder(overrides: Partial<RawOrder> = {}): RawOrder {
   return {
@@ -176,7 +183,7 @@ describe("Shopify client", () => {
     );
     const client = new ShopifyClient(
       { ...CREDS, accessTokenExpiresAt: new Date(Date.now() + 10_000).toISOString() },
-      { app: APP, fetch: impl, sleep: noSleep, onCredentialsChange: (c) => void saved.push(c) },
+      { app: APP, fetch: impl, clock: fakeClock(), onCredentialsChange: (c) => void saved.push(c) },
     );
     await client.request("query { shop { name } }");
     expect(calls[0]!.body).toMatchObject({ grant_type: "refresh_token", refresh_token: "shprt_old" });
@@ -189,7 +196,7 @@ describe("Shopify client", () => {
       () => json({ access_token: "shpat_new", scope: "", expires_in: 3600, refresh_token: "shprt_new", refresh_token_expires_in: 100 }),
       () => new Response("", { status: 401 }),
     );
-    const client = new ShopifyClient(CREDS, { app: APP, fetch: impl, sleep: noSleep });
+    const client = new ShopifyClient(CREDS, { app: APP, fetch: impl, clock: fakeClock() });
     await expect(client.request("query { shop { name } }")).rejects.toMatchObject({ code: "AUTH" });
   });
 
@@ -201,7 +208,7 @@ describe("Shopify client", () => {
     });
     const client = new ShopifyClient(
       { ...CREDS, accessTokenExpiresAt: new Date(Date.now() - 1000).toISOString() },
-      { app: APP, fetch: impl, sleep: noSleep, reloadCredentials: async () => fresh },
+      { app: APP, fetch: impl, clock: fakeClock(), reloadCredentials: async () => fresh },
     );
     await client.request("query { shop { name } }");
     expect(calls).toHaveLength(1);
@@ -214,14 +221,14 @@ describe("Shopify client", () => {
       () => new Response("", { status: 429, headers: { "retry-after": "2" } }),
       () => json(shopData),
     );
-    const client = new ShopifyClient(CREDS, { app: APP, fetch: impl, sleep: async (ms) => void waits.push(ms) });
+    const client = new ShopifyClient(CREDS, { app: APP, fetch: impl, clock: fakeClock(waits) });
     await client.request("query { shop { name } }");
     expect(waits).toEqual([1000, 2000]);
   });
 
   it("reports missing access as AUTH", async () => {
     const { impl } = fakeFetch(() => json({ errors: [{ message: "Access denied for customer field", extensions: { code: "ACCESS_DENIED" } }] }));
-    const client = new ShopifyClient(CREDS, { app: APP, fetch: impl, sleep: noSleep });
+    const client = new ShopifyClient(CREDS, { app: APP, fetch: impl, clock: fakeClock() });
     await expect(client.request("query { shop { name } }")).rejects.toMatchObject({ code: "AUTH" });
   });
 });
@@ -246,7 +253,7 @@ describe("Shopify adapter", () => {
       rawOrder({ id: "gid://shopify/Order/4", tags: ["ops-processing"] }),
     ];
     const { impl, calls } = fakeFetch(() => json({ data: { orders: { edges: orders.map(edge), pageInfo: { hasNextPage: false } } } }));
-    const adapter = new ShopifyAdapter(CREDS, { app: APP, fetch: impl, sleep: noSleep });
+    const adapter = new ShopifyAdapter(CREDS, { app: APP, fetch: impl, clock: fakeClock() });
     const page = await adapter.listOrders({ status: "processing", limit: 2, createdFrom: "2026-09-01T00:00:00.000Z" });
     expect(page.items.map((o) => o.id)).toEqual(["gid://shopify/Order/1", "gid://shopify/Order/3"]);
     expect(page.nextCursor).toBe("c-gid://shopify/Order/3");
@@ -269,7 +276,7 @@ describe("Shopify adapter", () => {
       () => json({ data: { order: processing } }),
       () => json({ data: { order: processing } }),
     );
-    const adapter = new ShopifyAdapter(CREDS, { app: APP, fetch: impl, sleep: noSleep });
+    const adapter = new ShopifyAdapter(CREDS, { app: APP, fetch: impl, clock: fakeClock() });
     expect((await adapter.updateOrderStatus(pending.id, "processing")).status).toBe("processing");
     expect(calls[2]!.body.variables).toEqual({ id: pending.id, tags: ["ops-processing"] });
     await expect(adapter.updateOrderStatus(pending.id, "cancelled")).rejects.toMatchObject({ code: "VALIDATION" });
@@ -280,7 +287,7 @@ describe("Shopify adapter", () => {
       () => json(shopData()),
       () => json({ data: { discountCodeBasicCreate: { codeDiscountNode: null, userErrors: [{ code: "TAKEN", field: ["basicCodeDiscount", "code"], message: "Code must be unique" }] } } }),
     );
-    const adapter = new ShopifyAdapter(CREDS, { app: APP, fetch: impl, sleep: noSleep });
+    const adapter = new ShopifyAdapter(CREDS, { app: APP, fetch: impl, clock: fakeClock() });
     await expect(adapter.createCoupon({ code: "WELCOME10", type: "percent", value: 10 })).rejects.toMatchObject({ code: "CONFLICT" });
     await expect(adapter.createCoupon({ code: "TOOMUCH", type: "percent", value: 150 })).rejects.toMatchObject({ code: "VALIDATION" });
   });
@@ -295,7 +302,7 @@ describe("Shopify adapter", () => {
       () => json({ data: { productVariant: { product: { id: "gid://shopify/Product/9", title: "Kurta", status: "ACTIVE", updatedAt: "2026-10-01T00:00:00Z", variants: { nodes: [] } } } } }),
       () => json(shopData()),
     );
-    const adapter = new ShopifyAdapter(CREDS, { app: APP, fetch: impl, sleep: noSleep });
+    const adapter = new ShopifyAdapter(CREDS, { app: APP, fetch: impl, clock: fakeClock() });
     await adapter.updateStock("gid://shopify/ProductVariant/91", 10);
     const input = calls[1]!.body.variables.input as { quantities: { quantity: number; changeFromQuantity: number }[] };
     // Total 7 → 10: +3 at the first location (4 → 7).

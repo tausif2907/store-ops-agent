@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AdapterError } from "../adapter";
+import { backoffDelay, bucketFor, parseRetryAfter, realClock, type Clock } from "../rate-limit";
 import { SHOPIFY_API_VERSION } from "./version";
 
 /**
@@ -34,8 +35,8 @@ export interface ShopifyClientOptions {
   /** Reads the stored credentials again (another process may have refreshed). */
   reloadCredentials?: () => Promise<ShopifyCredentials | null>;
   fetch?: typeof fetch;
-  /** Waits between retries; replaced in tests. */
-  sleep?: (ms: number) => Promise<void>;
+  /** Time and waiting; replaced in tests. */
+  clock?: Clock;
   maxRetries?: number;
 }
 
@@ -47,10 +48,20 @@ interface GraphQLError {
 interface GraphQLResponse<T> {
   data?: T;
   errors?: GraphQLError[] | string;
-  extensions?: { cost?: { throttleStatus?: { currentlyAvailable: number; restoreRate: number }; requestedQueryCost?: number } };
+  extensions?: {
+    cost?: {
+      throttleStatus?: { currentlyAvailable: number; restoreRate: number; maximumAvailable?: number };
+      requestedQueryCost?: number;
+      actualQueryCost?: number | null;
+    };
+  };
 }
 
 const REFRESH_MARGIN_MS = 60_000;
+/** Shopify's standard GraphQL bucket until the first response tells us the store's own. */
+const DEFAULT_BUCKET = { capacity: 2000, restorePerSecond: 100 };
+/** Last known cost of each query, to reserve the right amount before sending it. */
+const queryCost = new Map<string, number>();
 
 export function appConfigFromEnv(): ShopifyAppConfig | undefined {
   const clientId = process.env.SHOPIFY_CLIENT_ID;
@@ -111,11 +122,15 @@ export class ShopifyClient {
 
   async request<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
     const fetchImpl = this.options.fetch ?? fetch;
-    const sleep = this.options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+    const clock = this.options.clock ?? realClock;
+    const sleep = (ms: number) => clock.sleep(ms);
+    const bucket = bucketFor(`shopify:${this.credentials.shop}`, DEFAULT_BUCKET.capacity, DEFAULT_BUCKET.restorePerSecond, clock);
     let refreshedAfter401 = false;
 
     for (let attempt = 0; ; attempt++) {
       await this.ensureFreshToken();
+      // Reserve the query's cost so concurrent runs on one store stay under Shopify's limit.
+      await bucket.take(queryCost.get(query) ?? 50);
       let res: Response;
       try {
         res = await fetchImpl(`https://${this.credentials.shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
@@ -128,7 +143,7 @@ export class ShopifyClient {
         });
       } catch (err) {
         if (attempt < this.options.maxRetries) {
-          await sleep(backoff(attempt));
+          await sleep(backoffDelay(attempt));
           continue;
         }
         throw new AdapterError("UNAVAILABLE", `Could not reach ${this.credentials.shop}`, { cause: err, retryAfterMs: 5_000 });
@@ -146,7 +161,7 @@ export class ShopifyClient {
       if (res.status === 404) throw new AdapterError("UNAVAILABLE", "The Shopify store was not found.");
       if (res.status === 423) throw new AdapterError("UNAVAILABLE", "The Shopify store is locked.");
       if (res.status === 429 || res.status >= 500) {
-        const retryAfter = Number(res.headers.get("retry-after")) * 1000 || backoff(attempt);
+        const retryAfter = backoffDelay(attempt, parseRetryAfter(res.headers.get("retry-after"), clock.now()));
         if (attempt < this.options.maxRetries) {
           await sleep(retryAfter);
           continue;
@@ -155,16 +170,18 @@ export class ShopifyClient {
       }
 
       const body = (await res.json()) as GraphQLResponse<T>;
+      const cost = body.extensions?.cost;
+      if (cost?.requestedQueryCost) queryCost.set(query, cost.requestedQueryCost);
+      if (cost?.throttleStatus) {
+        const t = cost.throttleStatus;
+        bucket.sync(t.currentlyAvailable, t.maximumAvailable ?? DEFAULT_BUCKET.capacity, t.restoreRate);
+      }
       const errors = typeof body.errors === "string" ? [{ message: body.errors }] : body.errors;
       if (errors?.length) {
         if (errors.some((e) => e.extensions?.code === "THROTTLED")) {
-          const status = body.extensions?.cost?.throttleStatus;
-          const needed = body.extensions?.cost?.requestedQueryCost ?? 100;
-          const wait = status ? Math.ceil(((needed - status.currentlyAvailable) / status.restoreRate) * 1000) : backoff(attempt);
-          if (attempt < this.options.maxRetries) {
-            await sleep(Math.max(wait, 250));
-            continue;
-          }
+          // The bucket now holds Shopify's own numbers; the next take() waits exactly long enough.
+          const wait = bucket.waitTime(cost?.requestedQueryCost ?? 100);
+          if (attempt < this.options.maxRetries) continue;
           throw new AdapterError("RATE_LIMITED", "Shopify is throttling requests", { retryAfterMs: wait });
         }
         if (errors.some((e) => e.extensions?.code === "ACCESS_DENIED")) {
@@ -224,8 +241,4 @@ export class ShopifyClient {
     this.credentials = { ...credentials, scopes: credentials.scopes.length ? credentials.scopes : this.credentials.scopes };
     await this.options.onCredentialsChange?.(this.credentials);
   }
-}
-
-function backoff(attempt: number): number {
-  return Math.min(500 * 2 ** attempt, 8_000);
 }

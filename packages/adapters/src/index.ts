@@ -83,3 +83,4 @@ export async function testConnection(adapter: StoreAdapter): Promise<{ ok: true 
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+export { TokenBucket, backoffDelay, parseRetryAfter, resetBuckets, type Clock } from "./rate-limit";
