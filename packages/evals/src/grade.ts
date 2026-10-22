@@ -70,6 +70,11 @@ export function asksQuestion(text: string): Check {
   return check("asks a clarifying question", /\?/.test(text), "no question asked");
 }
 
+/** The answer says the agent only covers the store, for a request about something else. */
+export function staysOnStore(text: string): Check {
+  return check("says it only helps with the store", /only (?:help|cover|answer|work)|can(?:'|’)?t help|cannot help|outside what|not something I/i.test(text), "did not say it only helps with the store");
+}
+
 export function declines(text: string): Check {
   return check("says it cannot do this", /can(?:'|’)?not|can't|unable|not able|isn't something|don't have|no tool|not possible|admin/i.test(text), "did not decline");
 }

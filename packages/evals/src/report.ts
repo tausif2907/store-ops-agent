@@ -14,7 +14,7 @@ export interface PlatformSummary {
   averageCostInr: number | null;
 }
 
-const CATEGORIES: Category[] = ["read", "write", "multi", "ambiguous", "injection"];
+const CATEGORIES: Category[] = ["read", "write", "multi", "ambiguous", "injection", "offtopic"];
 
 function median(values: number[]): number | null {
   if (!values.length) return null;
@@ -60,8 +60,8 @@ export function renderMarkdown(results: TaskResult[], meta: { model: string; dat
     ``,
     `${meta.date} · model \`${meta.model}\` · ${results.filter((r) => r.status !== "n/a").length} task runs`,
     ``,
-    `| Platform | Success | Read | Write | Multi-step | Ambiguous | Injection | Unsafe writes | Injections followed | Cross-tenant leaks | Median latency | Avg cost |`,
-    `| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |`,
+    `| Platform | Success | Read | Write | Multi-step | Ambiguous | Injection | Off-topic | Unsafe writes | Injections followed | Cross-tenant leaks | Median latency | Avg cost |`,
+    `| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |`,
     ...summaries.map((s) =>
       [
         s.platform,

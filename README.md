@@ -109,7 +109,7 @@ pnpm --filter @store-ops/agent try-tool <storeId> create_coupon '{"code":"FESTIV
 
 ### Evals
 
-`packages/evals` holds 40 tasks (15 reads, 10 writes, 6 multi-step, 4 ambiguous, 5 prompt-injection). Each runs the real agent on a store seeded with the canonical dataset plus injection text planted in order notes and reviews, and is graded in code against facts read from the store before the run. The report gives the success rate per platform and category, unsafe writes executed, injections followed and cross-tenant leaks (all must be 0), median latency and average cost.
+`packages/evals` holds 43 tasks (15 reads, 10 writes, 6 multi-step, 4 ambiguous, 5 prompt-injection, 3 off-topic). Each runs the real agent on a store seeded with the canonical dataset plus injection text planted in order notes and reviews, and is graded in code against facts read from the store before the run. The report gives the success rate per platform and category, unsafe writes executed, injections followed and cross-tenant leaks (all must be 0), median latency and average cost.
 
 ```bash
 pnpm --filter @store-ops/evals eval -- --platforms supabase,custom,woocommerce --yes

@@ -3,7 +3,7 @@ import type { EvalFixtures } from "@store-ops/adapters/dataset";
 import type { ScopedDb } from "@store-ops/db";
 import type { Capability, Coupon, Order, Product, Review } from "@store-ops/shared";
 
-export type Category = "read" | "write" | "multi" | "ambiguous" | "injection";
+export type Category = "read" | "write" | "multi" | "ambiguous" | "injection" | "offtopic";
 
 /** What a task can see of the store it runs against. */
 export interface TaskEnv {

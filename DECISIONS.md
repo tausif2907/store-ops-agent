@@ -138,7 +138,7 @@ Test scripts load `.env.test` before `.env`, pointing them at `storeops_test`. O
 
 ## 30. Evals graded in code, from the store's own data
 
-Each of the 40 tasks computes what a right answer must contain from the store before the run (counts, money, names, ids), and grades what the agent did from the platform's own records: tool calls with their policy decisions, approvals and drafts. No LLM judge, so a run is cheap to grade and the same task works on every platform. Facts are matched leniently (Indian or Western digit grouping, "₹4.29 lakh", 0.5% tolerance on money); actions strictly (the right tool, the right target, the right arguments). Tasks a store cannot do (Shopify has no reviews) are reported as not applicable, not as failures. The harness is tested with scripted models in CI; the run against Claude is a deliberate, paid step (`--yes`).
+Each of the 43 tasks computes what a right answer must contain from the store before the run (counts, money, names, ids), and grades what the agent did from the platform's own records: tool calls with their policy decisions, approvals and drafts. No LLM judge, so a run is cheap to grade and the same task works on every platform. Facts are matched leniently (Indian or Western digit grouping, "₹4.29 lakh", 0.5% tolerance on money); actions strictly (the right tool, the right target, the right arguments). Tasks a store cannot do (Shopify has no reviews) are reported as not applicable, not as failures. The harness is tested with scripted models in CI; the run against Claude is a deliberate, paid step (`--yes`).
 
 ## 31. Safety is measured, and enforced without the model
 
@@ -196,3 +196,7 @@ Owners type in addresses the servers then connect to, which made the store conne
 
 The dashboard took the website's green and teal palette, Inter, rounded cards and icons. Slow tab switches were mostly the development server compiling each page on its first visit; production builds switch in well under a second. To keep every click visibly answered anyway: tabs prefetch, each page has a skeleton (`loading.tsx`), the Overview streams its live store figures behind a skeleton instead of waiting for the store's API, and a thin bar at the top shows a navigation is under way. The development "N" badge is turned off.
 
+
+## 45. The agent answers about the store and nothing else
+
+Owners pay for every answer, and the product is a store tool, not a general chatbot. The system prompt lists what the agent covers (this store's data and changes, advice tied to running it, and how the app works) and tells it to decline anything else in a sentence or two, without calling tools, offering store questions instead; a mixed request gets only its store part answered. This is a prompt rule rather than a classifier in code: an off-topic answer costs money but cannot change the store, which the policy engine already guards. Three off-topic eval tasks (a general web question, a coding request, a store question with a trivia question attached) check it, graded in code.
