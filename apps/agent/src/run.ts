@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { dbForStore } from "@store-ops/db";
-import { budgetStatus } from "@store-ops/tools";
-import type { AgentEvent, ChatTurn } from "@store-ops/shared";
+import { dbForStore, ownerEntitlementForStore } from "@store-ops/db";
+import { budgetStatus, evaluateEntitlement, runBlockedReason } from "@store-ops/tools";
+import { errorSummary, type AgentEvent, type ChatTurn } from "@store-ops/shared";
 import { RunLimitError, runAgentLoop, type LoopLimits, type ModelClient, type ToolClient } from "./loop";
 import { usdToInr } from "./pricing";
 import { systemPrompt } from "./prompt";
@@ -54,6 +54,14 @@ export async function runAgent(input: RunInput, emit: (event: AgentEvent) => voi
     emit({ type: "error", message });
     return { runId: run.id, status: "CANCELLED", output: null, error: message };
   }
+  // The owner's plan: an ended trial or plan, or the month's AI allowance used up, stops runs on every store.
+  const entitlement = await ownerEntitlementForStore(store.id);
+  const blocked = entitlement ? runBlockedReason(evaluateEntitlement(entitlement)) : "This store's account could not be found.";
+  if (blocked) {
+    await db.agentRun.update({ where: { id: run.id }, data: { status: "CANCELLED", error: blocked, finishedAt: new Date() } });
+    emit({ type: "error", message: blocked });
+    return { runId: run.id, status: "CANCELLED", output: null, error: blocked };
+  }
   const budget = await budgetStatus(db, store.id);
   if (budget.exhausted) {
     const message = `This store has used its monthly agent budget (₹${budget.limitInr.toFixed(0)}). Raise it under Runs, or wait for next month.`;
@@ -61,7 +69,6 @@ export async function runAgent(input: RunInput, emit: (event: AgentEvent) => voi
     emit({ type: "error", message });
     return { runId: run.id, status: "CANCELLED", output: null, error: message };
   }
-
 
   let tools: Awaited<ReturnType<RunDeps["connectTools"]>> | undefined;
   let outcome: RunOutcome;
@@ -95,7 +102,7 @@ export async function runAgent(input: RunInput, emit: (event: AgentEvent) => voi
     outcome = { runId: run.id, status: "SUCCEEDED", output: result.output, error: null };
   } catch (err) {
     const message = input.signal?.aborted ? "The run was cancelled." : describeError(err);
-    if (!(err instanceof RunLimitError) && !input.signal?.aborted) console.error(`Run ${run.id} failed`, err);
+    if (!(err instanceof RunLimitError) && !input.signal?.aborted) console.error(`Run ${run.id} failed`, errorSummary(err));
     await db.agentRun.update({
       where: { id: run.id },
       data: { status: input.signal?.aborted ? "CANCELLED" : "FAILED", error: message, finishedAt: new Date() },

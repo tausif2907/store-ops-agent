@@ -18,6 +18,7 @@ import {
 } from "@store-ops/shared";
 import { AdapterError, type StoreAdapter } from "../adapter";
 import { fromMinorUnits, toMinorUnits } from "../shopify/mappers";
+import { assertPublicHost } from "../network";
 import { parseInput } from "../validation";
 import { WooClient, type WooClientOptions, type WooCredentials } from "./client";
 
@@ -516,7 +517,8 @@ export class WooAdapter implements StoreAdapter {
       url.searchParams.set("per_page", "100");
       url.searchParams.set("orderby", "date");
       url.searchParams.set("order", "asc");
-      const res = await (this.options.fetch ?? fetch)(url);
+      await assertPublicHost(url.hostname);
+      const res = await (this.options.fetch ?? fetch)(url, { redirect: "manual" });
       if (res.ok) {
         for (const c of (await res.json()) as { parent: number; date_gmt: string; content: { rendered: string } }[]) {
           if (!replies.has(c.parent)) replies.set(c.parent, { body: htmlToText(c.content.rendered), createdAt: gmt(c.date_gmt)! });

@@ -16,10 +16,17 @@
     "db:migrate": "pnpm --filter @store-ops/db migrate && pnpm --filter @store-ops/db migrate:test",
     "db:setup": "pnpm --filter @store-ops/db setup:production",
     "db:generate": "pnpm --filter @store-ops/db generate",
-    "boutique:reset": "pnpm --filter @store-ops/adapters boutique:reset"
+    "boutique:reset": "pnpm --filter @store-ops/adapters boutique:reset",
+    "user:set-password": "pnpm --filter @store-ops/web set-password",
+    "user:set-plan": "pnpm --filter @store-ops/db set-plan"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
     "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.28"
+    }
   }
 }

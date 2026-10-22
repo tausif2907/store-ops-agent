@@ -18,7 +18,13 @@ test("a new owner goes from sign-up to a first digest and an approved change", a
   const signedUpAt = Date.now();
   await page.getByLabel("Name").fill("Asha Owner");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("e2e-owner-pass-2026");
+  const password = page.getByLabel("Password", { exact: true });
+  await password.fill("e2e-owner-pass-2026");
+  // The eye button shows and hides what was typed.
+  await page.getByRole("button", { name: "Show password" }).click();
+  await expect(password).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await expect(password).toHaveAttribute("type", "password");
   await page.getByRole("button", { name: "Create account" }).click();
 
   // 2. Connect: straight into onboarding
@@ -61,10 +67,30 @@ test("a new owner goes from sign-up to a first digest and an approved change", a
   await expect(page.getByText("Store connected")).toBeVisible();
 });
 
-test("signed-out visitors see the landing page, and store pages ask them to log in", async ({ page }) => {
+test("signed-out visitors browse the public site, and store pages ask them to log in", async ({ page }) => {
   await page.goto("/stores");
   await expect(page).toHaveURL(/\/login$/);
+
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Get started" }).first()).toBeVisible();
-  await expect(page.getByText("Safe by design")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Safe by design" })).toBeVisible();
+  const site = page.getByRole("navigation", { name: "Site" });
+  await site.getByRole("link", { name: "Pricing" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("AI usage included");
+  await site.getByRole("link", { name: "Developers" }).click();
+  await expect(page.getByRole("link", { name: /Download the OpenAPI spec/ })).toHaveAttribute("href", "/connector/openapi.json");
+
+  // Forgotten passwords: the same answer whether or not the email has an account.
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Forgot password?" }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await page.waitForLoadState("networkidle"); // the form is ready once the page's script has loaded
+  await page.getByLabel("Email").fill(`nobody-${Date.now()}@e2e.test`);
+  await page.getByRole("button", { name: "Send the link" }).click();
+  await expect(page.getByRole("status")).toContainText("If nobody-");
+
+  // Sign-up and log-in are links within the app, so they work without any app URL setting.
+  await page.goto("/");
+  await page.getByRole("banner").getByRole("link", { name: "Get started" }).click();
+  await expect(page).toHaveURL(/\/signup$/);
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
 });

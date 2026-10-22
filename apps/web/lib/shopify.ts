@@ -5,6 +5,7 @@ import { ShopifyAdapter, appConfigFromEnv, shopifyOAuth } from "@store-ops/adapt
 import { dbForUser, isUniqueViolation } from "@store-ops/db";
 import { encryptJson } from "@store-ops/shared/crypto";
 import { ensureDefaultJobs } from "@store-ops/tools";
+import { cannotAddStoreReason } from "./plan";
 
 const STATE_COOKIE = "so_shopify_oauth";
 
@@ -24,7 +25,9 @@ export function shopifyRedirectUri(): string {
 }
 
 function secret(): Uint8Array {
-  return new TextEncoder().encode(process.env.SESSION_SECRET);
+  const value = process.env.SESSION_SECRET;
+  if (!value || value.length < 32) throw new Error("SESSION_SECRET must be set to at least 32 characters");
+  return new TextEncoder().encode(value);
 }
 
 /** Scopes to request: what the tools need, plus SHOPIFY_EXTRA_SCOPES (e.g. write_products to seed a dev store). */
@@ -88,6 +91,11 @@ export async function finishShopifyInstall(userId: string, params: URLSearchPara
   const info = await adapter.shop();
   const db = dbForUser(userId);
   const existing = await db.store.findFirst({ where: { platform: "SHOPIFY", externalId: credentials.shop } });
+
+  if (!existing) {
+    const blocked = await cannotAddStoreReason(userId);
+    if (blocked) return { error: blocked };
+  }
 
   let storeId: string;
   try {

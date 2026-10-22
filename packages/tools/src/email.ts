@@ -22,7 +22,13 @@ export async function sendEmail(email: Email): Promise<void> {
   if (transport) return transport(email);
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.log(`[email not sent: RESEND_API_KEY unset]\nTo: ${email.to}\nSubject: ${email.subject}\n\n${email.text}\n`);
+    // Bodies hold one-time links (approvals, password resets): print them only
+    // in development, never to a production log.
+    if (process.env.NODE_ENV === "production") {
+      console.warn(`Email not sent (RESEND_API_KEY is not set): "${email.subject}"`);
+    } else {
+      console.log(`[email not sent: RESEND_API_KEY unset]\nTo: ${email.to}\nSubject: ${email.subject}\n\n${email.text}\n`);
+    }
     return;
   }
   const res = await fetch("https://api.resend.com/emails", {

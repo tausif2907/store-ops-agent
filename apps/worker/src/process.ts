@@ -1,6 +1,6 @@
 import { runAgent, type RunDeps } from "@store-ops/agent/run";
-import { dbForStore, type Prisma } from "@store-ops/db";
-import { JOBS, adapterForStore, budgetStatus, ensureDefaultJobs, type JobData, type JobType } from "@store-ops/tools";
+import { dbForStore, ownerEntitlementForStore, type Prisma } from "@store-ops/db";
+import { JOBS, adapterForStore, budgetStatus, ensureDefaultJobs, evaluateEntitlement, runBlockedReason, type JobData, type JobType } from "@store-ops/tools";
 import { emailOwner, storeUrl } from "./email";
 import { PLANNERS } from "./jobs";
 
@@ -25,6 +25,9 @@ export async function processJob(type: JobType, data: JobData, deps: RunDeps, no
   if (!store || !store.connection || store.connection.status !== "ACTIVE") return { status: "skipped", reason: "The store is not connected" };
   if (store.isPaused) return { status: "skipped", reason: "The store is paused" };
   if (!job || (!job.isEnabled && data.reason !== "manual")) return { status: "skipped", reason: "The job is turned off" };
+  const entitlement = await ownerEntitlementForStore(store.id);
+  const blocked = entitlement ? runBlockedReason(evaluateEntitlement(entitlement)) : "The account could not be found";
+  if (blocked) return { status: "skipped", reason: blocked };
   if ((await budgetStatus(db, store.id)).exhausted) return { status: "skipped", reason: "The store's monthly budget is used up" };
 
   const adapter = adapterForStore(store, store.connection.credentialsEncrypted);

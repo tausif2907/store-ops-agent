@@ -84,3 +84,4 @@ export async function testConnection(adapter: StoreAdapter): Promise<{ ok: true 
   }
 }
 export { TokenBucket, backoffDelay, parseRetryAfter, resetBuckets, type Clock } from "./rate-limit";
+export { assertPublicHost, isPrivateAddress, privateHostsAllowed } from "./network";

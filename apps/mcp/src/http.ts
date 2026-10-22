@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpServer } from "./server";
+import { errorSummary } from "@store-ops/shared";
 
 /**
  * Internal-only MCP endpoint (POST /mcp). Reachable by the agent API and the
@@ -66,7 +67,7 @@ export function createMcpHttpServer(options: { token: string }): HttpServer {
       await server.connect(transport);
       await transport.handleRequest(req, res, body);
     } catch (err) {
-      console.error("MCP request failed", err);
+      console.error("MCP request failed", errorSummary(err));
       if (!res.headersSent) sendJson(res, 500, { error: "Internal error" });
     }
   });

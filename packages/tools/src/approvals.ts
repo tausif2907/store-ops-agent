@@ -4,6 +4,7 @@ import { approvalUrl, signApprovalLink } from "./approval-link";
 import { ToolInputError, getTool, type ToolContext, type ToolDefinition } from "./catalog";
 import { escapeHtml, sendEmail } from "./email";
 import { adapterForStore } from "./store-adapter";
+import { errorSummary } from "@store-ops/shared";
 
 export const APPROVAL_TTL_MS = 30 * 60 * 1000;
 
@@ -57,7 +58,7 @@ export async function requestApproval(args: {
   try {
     await emailApproval(args.storeId, approval);
   } catch (err) {
-    console.error(`Could not email approval ${approval.id}`, err);
+    console.error(`Could not email approval ${approval.id}`, errorSummary(err));
   }
   return approval;
 }

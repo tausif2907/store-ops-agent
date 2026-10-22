@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { z } from "zod";
-import type { AgentEvent } from "@store-ops/shared";
+import { errorSummary, type AgentEvent } from "@store-ops/shared";
 import { runChat, type RunDeps } from "./run";
 
 /**
@@ -67,7 +67,7 @@ export function createAgentHttpServer(options: { token: string; deps: () => RunD
     try {
       await runChat({ ...body, signal: abort.signal }, emit, options.deps());
     } catch (err) {
-      console.error("Run could not start", err);
+      console.error("Run could not start", errorSummary(err));
       emit({ type: "error", message: "The run could not start." });
     } finally {
       res.end();

@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { AdapterError, type AdapterErrorCode } from "../adapter";
+import { assertPublicHost, redirectError } from "../network";
 import { backoffDelay, bucketFor, parseRetryAfter, platformRate, realClock, type Clock } from "../rate-limit";
 
 /**
@@ -73,6 +74,7 @@ export class WooClient {
     // WooCommerce has no published limit, but hosts do: stay at a polite rate per site.
     const rate = platformRate("WOO_REQUESTS_PER_SECOND", 5);
     const bucket = bucketFor(`woo:${this.credentials.url}`, rate * 2, rate, clock);
+    await assertPublicHost(new URL(this.credentials.url).hostname);
 
     for (let attempt = 0; ; attempt++) {
       await bucket.take();
@@ -83,6 +85,7 @@ export class WooClient {
           method,
           headers: { ...headers, accept: "application/json", ...(body === undefined ? {} : { "content-type": "application/json" }) },
           body: body === undefined ? undefined : JSON.stringify(body),
+          redirect: "manual",
         });
       } catch (err) {
         if (attempt < maxRetries) {
@@ -92,6 +95,8 @@ export class WooClient {
         throw new AdapterError("UNAVAILABLE", `Could not reach ${this.credentials.url}`, { cause: err, retryAfterMs: 5_000 });
       }
 
+      const redirected = redirectError(res);
+      if (redirected) throw redirected;
       if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
         await clock.sleep(backoffDelay(attempt, parseRetryAfter(res.headers.get("retry-after"), clock.now())));
         continue;

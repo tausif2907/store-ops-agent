@@ -17,6 +17,7 @@ import {
 } from "@store-ops/shared";
 import { AdapterError, type AdapterErrorCode, type StoreAdapter } from "../adapter";
 import { backoffDelay, bucketFor, parseRetryAfter, platformRate, realClock, type Clock } from "../rate-limit";
+import { assertPublicHost, redirectError } from "../network";
 import { parseInput } from "../validation";
 import { CapabilitiesResponse, ConnectorError, CouponList } from "./spec";
 
@@ -140,6 +141,7 @@ export class CustomRestAdapter implements StoreAdapter {
     const maxRetries = this.options.maxRetries ?? 3;
     const rate = platformRate("CONNECTOR_REQUESTS_PER_SECOND", 10);
     const bucket = bucketFor(`custom:${this.credentials.baseUrl}`, rate * 2, rate, clock);
+    await assertPublicHost(url.hostname);
 
     for (let attempt = 0; ; attempt++) {
       await bucket.take();
@@ -154,6 +156,7 @@ export class CustomRestAdapter implements StoreAdapter {
           },
           body: body === undefined ? undefined : JSON.stringify(body),
           signal: AbortSignal.timeout(15_000),
+          redirect: "manual",
         });
       } catch (err) {
         if (attempt < maxRetries) {
@@ -162,6 +165,8 @@ export class CustomRestAdapter implements StoreAdapter {
         }
         throw new AdapterError("UNAVAILABLE", `Could not reach ${url.origin}`, { cause: err, retryAfterMs: 5_000 });
       }
+      const redirected = redirectError(res);
+      if (redirected) throw redirected;
       if ((res.status === 429 || res.status >= 500) && res.status !== 501 && attempt < maxRetries) {
         await clock.sleep(backoffDelay(attempt, parseRetryAfter(res.headers.get("retry-after"), clock.now())));
         continue;

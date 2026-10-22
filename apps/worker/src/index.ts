@@ -5,6 +5,7 @@ import { JOB_TYPES, closeQueues, jobQueue, redisConnection, type JobType } from 
 import { desiredSchedules, syncSchedules } from "./schedules";
 import { processWebhookEvents } from "./webhooks";
 import { createJobWorker } from "./workers";
+import { errorSummary } from "@store-ops/shared";
 
 const SYNC_EVERY_MS = 60_000;
 
@@ -31,7 +32,7 @@ async function tick() {
     const events = await processWebhookEvents();
     if (events) console.log(`Webhook events handled: ${events}`);
   } catch (err) {
-    console.error("Scheduler sync failed", err);
+    console.error("Scheduler sync failed", errorSummary(err));
   }
 }
 

@@ -17,6 +17,7 @@ import {
   type WebhookEvent,
 } from "@store-ops/shared";
 import { AdapterError, type StoreAdapter } from "../adapter";
+import { assertPublicHost, privateHostsAllowed } from "../network";
 import { parseInput } from "../validation";
 
 export const SupabaseCredentials = z.object({
@@ -50,9 +51,12 @@ export class SupabaseAdapter implements StoreAdapter {
   readonly platform = "SUPABASE" as const;
   private readonly pool: pg.Pool;
   private caps: Promise<Capability[]> | undefined;
+  private readonly hostCheck: () => Promise<void>;
 
   constructor(credentials: SupabaseCredentials) {
     const { connectionString } = SupabaseCredentials.parse(credentials);
+    let checked: Promise<void> | undefined;
+    this.hostCheck = () => (checked ??= checkDatabaseHost(connectionString));
     this.pool = new pg.Pool({
       connectionString,
       max: 3,
@@ -132,6 +136,7 @@ export class SupabaseAdapter implements StoreAdapter {
 
   private async call<S extends z.ZodType>(fn: string, args: unknown[], schema: S): Promise<z.infer<S>> {
     const placeholders = args.map((_, i) => `$${i + 1}`).join(", ");
+    await this.hostCheck();
     let raw: unknown;
     try {
       const { rows } = await this.pool.query(`SELECT agent_api.${fn}(${placeholders}) AS r`, args);
@@ -147,6 +152,22 @@ export class SupabaseAdapter implements StoreAdapter {
     }
     return parsed.data;
   }
+}
+
+/** The database must be reachable at a public address (see network.ts). */
+async function checkDatabaseHost(connectionString: string): Promise<void> {
+  if (privateHostsAllowed()) return;
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new AdapterError("VALIDATION", "The connection string is not a valid postgres:// URL.");
+  }
+  // libpq's ?host= (or hostaddr=) would override the host in the URL, e.g. with a socket path.
+  if (url.searchParams.has("host") || url.searchParams.has("hostaddr")) {
+    throw new AdapterError("VALIDATION", "Put the database host in the connection string itself, not in a host parameter.");
+  }
+  await assertPublicHost(url.hostname);
 }
 
 function mapPgError(err: unknown): AdapterError {

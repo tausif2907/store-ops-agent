@@ -1,6 +1,7 @@
 import { Marked } from "marked";
 import { storeOwnerContact } from "@store-ops/db";
 import { sendEmail } from "@store-ops/tools";
+import { errorSummary } from "@store-ops/shared";
 
 /**
  * Emails from autonomous jobs. The agent writes markdown; it is rendered to
@@ -40,7 +41,7 @@ export async function emailOwner(storeId: string, storeName: string, subject: st
     await sendEmail({ to: owner.email, subject, html, text });
     return true;
   } catch (err) {
-    console.error(`Could not email the owner of store ${storeId}`, err);
+    console.error(`Could not email the owner of store ${storeId}`, errorSummary(err));
     return false;
   }
 }

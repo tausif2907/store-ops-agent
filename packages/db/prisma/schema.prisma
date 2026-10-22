@@ -60,9 +60,42 @@ model User {
   name         String
   passwordHash String   @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Raised to sign the user out everywhere (password change or reset, "log out everywhere").
+  sessionVersion      Int       @default(0) @map("session_version")
+  /// Authenticator-app secret, encrypted like store credentials. Two-factor is on when totpEnabledAt is set.
+  totpSecretEncrypted String?   @map("totp_secret_encrypted")
+  totpEnabledAt       DateTime? @map("totp_enabled_at") @db.Timestamptz(3)
+  /// SHA-256 hashes of unused recovery codes.
+  recoveryCodes       String[]  @default([]) @map("recovery_codes")
+  /// trial | starter | growth | custom. Changed only by billing (see migrations/*_accounts_and_plans).
+  plan                String    @default("trial")
+  /// trialing | pending | active | past_due | halted | cancelled
+  planStatus          String    @default("trialing") @map("plan_status")
+  trialEndsAt         DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP + '14 days'::interval)")) @map("trial_ends_at") @db.Timestamptz(3)
+  planRenewsAt        DateTime? @map("plan_renews_at") @db.Timestamptz(3)
+  /// Custom plans: stores and monthly AI usage allowed.
+  planStoreLimit      Int?      @map("plan_store_limit")
+  planAiAllowanceInr  Decimal?  @map("plan_ai_allowance_inr") @db.Decimal(10, 2)
+  razorpaySubscriptionId String? @unique @map("razorpay_subscription_id")
   stores       Store[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("users")
+}
+
+/// Password reset links. Only a hash of each token is stored; reached only through SECURITY DEFINER functions.
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model Store {

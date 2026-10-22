@@ -124,6 +124,97 @@ export async function createUser(email: string, name: string, passwordHash: stri
   }
 }
 
+/**
+ * Replaces an account's password hash (the local set-password command).
+ * Finds the user through the login lookup, then updates the row in that
+ * user's own context, so Row-Level Security still applies. Returns false
+ * when no account has this email.
+ */
+export async function setUserPasswordHash(email: string, passwordHash: string): Promise<boolean> {
+  const user = await findUserForLogin(email);
+  if (!user) return false;
+  await dbForUser(user.id).user.update({ where: { id: user.id }, data: { passwordHash } });
+  return true;
+}
+
+// ---- Password resets -----------------------------------------------------
+// Before a reset there is no signed-in user, so these go through SECURITY
+// DEFINER functions that store and check only a hash of the token.
+
+/** Records a reset token for this email's account; returns who to email, or null when there is no such account. */
+export async function createPasswordReset(email: string, tokenHash: string, expiresAt: Date): Promise<{ email: string; name: string } | null> {
+  const rows = await basePrisma().$queryRaw<{ email: string; name: string }[]>`
+    SELECT email, name FROM app_create_password_reset(${email.toLowerCase()}, ${tokenHash}, ${expiresAt})`;
+  return rows[0] ?? null;
+}
+
+/** Uses a reset token once; returns its user id when it is valid and unexpired. */
+export async function consumePasswordReset(tokenHash: string): Promise<string | null> {
+  const rows = await basePrisma().$queryRaw<{ id: string | null }[]>`SELECT app_consume_password_reset(${tokenHash})::text AS id`;
+  return rows[0]?.id ?? null;
+}
+
+// ---- Plans -------------------------------------------------------------------
+
+export interface EntitlementRow {
+  plan: string;
+  planStatus: string;
+  trialEndsAt: Date;
+  planRenewsAt: Date | null;
+  planStoreLimit: number | null;
+  planAiAllowanceInr: number | null;
+  storeCount: number;
+  monthSpendInr: number;
+}
+
+async function entitlementIn(key: "app.user_id" | "app.store_id", value: string): Promise<EntitlementRow | null> {
+  const prisma = basePrisma();
+  const [, rows] = await prisma.$transaction([
+    prisma.$executeRaw`SELECT set_config(${key}, ${value}, TRUE)`,
+    prisma.$queryRaw<
+      { plan: string; plan_status: string; trial_ends_at: Date; plan_renews_at: Date | null; plan_store_limit: number | null; plan_ai_allowance_inr: string | null; store_count: number; month_spend_inr: string }[]
+    >`SELECT * FROM app_owner_entitlement()`,
+  ]);
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    plan: r.plan,
+    planStatus: r.plan_status,
+    trialEndsAt: r.trial_ends_at,
+    planRenewsAt: r.plan_renews_at,
+    planStoreLimit: r.plan_store_limit,
+    planAiAllowanceInr: r.plan_ai_allowance_inr === null ? null : Number(r.plan_ai_allowance_inr),
+    storeCount: r.store_count,
+    monthSpendInr: Number(r.month_spend_inr),
+  };
+}
+
+/** The plan and this month's usage of the owner of a store (agent runs, jobs). */
+export function ownerEntitlementForStore(storeId: string) {
+  return entitlementIn("app.store_id", storeId);
+}
+
+/** The signed-in owner's plan and usage (dashboard). */
+export function ownerEntitlementForUser(userId: string) {
+  return entitlementIn("app.user_id", userId);
+}
+
+/** The signed-in owner starts paying for a plan: remembers the subscription until billing confirms it. */
+export async function startSubscription(userId: string, subscriptionId: string, plan: "starter" | "growth"): Promise<void> {
+  const prisma = basePrisma();
+  await prisma.$transaction([
+    prisma.$executeRaw`SELECT set_config('app.user_id', ${userId}, TRUE)`,
+    prisma.$executeRaw`SELECT app_start_subscription(${subscriptionId}, ${plan})`,
+  ]);
+}
+
+/** Applies a verified billing event. Returns false when no account has this subscription. */
+export async function applySubscriptionEvent(event: { subscriptionId: string; plan: string | null; status: string; renewsAt: Date | null }): Promise<boolean> {
+  const rows = await basePrisma().$queryRaw<{ ok: boolean }[]>`
+    SELECT app_apply_subscription_event(${event.subscriptionId}, ${event.plan}, ${event.status}, ${event.renewsAt}) AS ok`;
+  return rows[0]?.ok === true;
+}
+
 export class EmailTakenError extends Error {
   constructor() {
     super("An account with this email already exists");

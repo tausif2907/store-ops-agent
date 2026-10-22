@@ -22,6 +22,7 @@ flowchart LR
 - A Render account with the repository connected (GitHub or GitLab).
 - A Claude API key, with a **monthly spend limit** set on the Claude account. Per-store budgets stop runs inside the app; the account limit is the backstop.
 - A Resend account with your sending domain verified, for approval links, digests and alerts. Without `RESEND_API_KEY` emails are only printed to the service logs.
+- Optional: a Razorpay account, to take payments for plans (section 5).
 - Optional: a Shopify app (see [shopify-setup.md](shopify-setup.md)). It needs the dashboard's public HTTPS address.
 
 ## 2. Create the Blueprint
@@ -39,9 +40,10 @@ Render then asks for the values it cannot generate. Some are asked once per serv
 | `APP_DATABASE_URL` | all four | `postgresql://storeops_app:<password>@<host>/storeops`: the database's **internal** host, and a new password of at least 16 characters (URL-encode symbols). The pre-deploy step creates the role with it. |
 | `APP_URL` | web, MCP, worker | The dashboard's public address, e.g. `https://storeops-web.onrender.com` or your own domain. Approval links, emails and Shopify redirects use it. |
 | `ANTHROPIC_API_KEY` | agent, worker | Your Claude API key. |
-| `RESEND_API_KEY` | MCP, worker | Your Resend key. |
-| `EMAIL_FROM` | MCP, worker | A sender on your verified domain, e.g. `Store Ops Agent <agent@yourdomain.com>`. |
+| `RESEND_API_KEY` | web, MCP, worker | Your Resend key. The dashboard sends password-reset emails. |
+| `EMAIL_FROM` | web, MCP, worker | A sender on your verified domain, e.g. `Store Ops Agent <agent@yourdomain.com>`. |
 | `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET` | web, MCP, worker | From your Shopify app; leave empty to offer Shopify later. |
+| `RAZORPAY_*` (five) | web | See section 5; leave empty to run without payments. |
 
 `DATABASE_URL` (the owner connection, used only by the dashboard's pre-deploy step), `AGENT_URL`, `MCP_URL` and `REDIS_URL` are wired between the services by the Blueprint.
 
@@ -66,6 +68,18 @@ When the deploy is live:
 - **WooCommerce** webhooks go to `<APP_URL>/api/webhooks/woocommerce/<store id>`, set up automatically when a store connects.
 - **Custom connectors** read the spec from `<APP_URL>/connector/openapi.json`.
 - **Costs:** every run's cost is on the store's Runs page; the default monthly budget per store is `DEFAULT_MONTHLY_BUDGET_INR` (₹500).
+
+The dashboard refuses to start in production if a secret is missing or short, `APP_DATABASE_URL` has the development password, `ALLOW_PRIVATE_STORE_HOSTS` is set, or `APP_URL` is not HTTPS; the reason is in its log.
+
+## 5. Billing (Razorpay)
+
+New accounts get a 14-day trial with Starter's limits. To take payments:
+
+1. In the Razorpay Dashboard, under **Subscriptions → Plans**, create two monthly plans: Starter at ₹999 and Growth at ₹2,499. Copy their ids (`plan_…`) into `RAZORPAY_PLAN_STARTER` and `RAZORPAY_PLAN_GROWTH`.
+2. Under **Account & Settings → API keys**, generate a key pair for `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`. Use test-mode keys until you have tried a payment.
+3. Under **Webhooks**, add `<APP_URL>/api/webhooks/razorpay` with the `subscription.*` events, choose a secret, and set it as `RAZORPAY_WEBHOOK_SECRET`.
+
+Owners then choose a plan on **Account → Billing** and pay on Razorpay's page; the plan changes when Razorpay's signed webhook arrives. Custom plans, refunds and plan switches are handled by hand: set a plan with `pnpm user:set-plan <email> <plan> [stores] [₹]`, run with `DATABASE_URL` set to the owner connection.
 
 ## Other hosts
 

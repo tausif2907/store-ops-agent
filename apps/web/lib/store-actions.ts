@@ -6,8 +6,9 @@ import { AVAILABLE_PLATFORMS, WooAdapter, WooCredentials, createAdapter, testCon
 import { dbForUser, isUniqueViolation } from "@store-ops/db";
 import { Platform } from "@store-ops/shared";
 import { encryptJson } from "@store-ops/shared/crypto";
-import { adapterForStore, ensureDefaultJobs, webhookUrlFor } from "@store-ops/tools";
+import { adapterForStore, describeRetry, ensureDefaultJobs, rateLimit, webhookUrlFor } from "@store-ops/tools";
 import { welcomeUrl } from "./onboarding";
+import { cannotAddStoreReason } from "./plan";
 import { requireUser } from "./session";
 import { startShopifyInstall } from "./shopify";
 import type { FormState } from "./auth-actions";
@@ -41,6 +42,11 @@ function isTimeZone(tz: string): boolean {
  */
 export async function connectStore(_prev: FormState, form: FormData): Promise<FormState> {
   const user = await requireUser();
+  const blocked = await cannotAddStoreReason(user.id);
+  if (blocked) return { error: blocked };
+  // Each attempt makes our server contact the address given.
+  const limit = await rateLimit(`connect:${user.id}`, 10, 600);
+  if (!limit.ok) return { error: `Too many connection attempts. Try again in ${describeRetry(limit.retryAfter)}.` };
   if (form.get("platform") === "SHOPIFY") {
     // Shopify stores connect through Shopify's own approval screen.
     const result = await startShopifyInstall(user.id, String(form.get("shop") ?? ""));

@@ -15,13 +15,14 @@ The agent decides what to look at and what to do, but every action passes a poli
 | 5 | WooCommerce adapter, custom REST connector spec | Done |
 | 6 | Autonomous jobs (BullMQ), email via Resend | Done |
 | 7 | Evals and hardening | Done (eval run needs a Claude key) |
-| 8 | Onboarding, landing page, deploy blueprint, browser end-to-end test | Done (going live, the eval report and the demo video are run by hand: [deploy](docs/deploy.md), [evals](#evals), [demo script](docs/demo-script.md)) |
+| 8 | Onboarding, public website, deploy blueprint, browser end-to-end test | Done (going live, the eval report and the demo video are run by hand: [deploy](docs/deploy.md), [evals](#evals), [demo script](docs/demo-script.md)) |
+| — | Accounts (reset by email, two-factor, revocable sessions), plans and Razorpay billing, security review ([docs/security.md](docs/security.md)) | Done (payments need Razorpay keys and plans) |
 
 ## Layout
 
 ```
 apps/
-  web/       Next.js dashboard: stores, chat, approvals, rules, activity log, run traces, kill switch
+  web/       Next.js: the public website (app/(site)) and the dashboard (app/(app)): stores, chat, approvals, rules, activity log, run traces, kill switch
   agent/     Agent API: the agent loop (Claude), step and time limits, cost tracking, SSE stream
   mcp/       MCP server: the 13 store tools, routed to the run's store adapter through the policy check
   worker/    BullMQ worker: the five autonomous jobs on each store's schedule, one run per store at a time
@@ -94,6 +95,10 @@ pnpm dev               # dashboard :3100, agent API :3200, MCP server :3201, job
 
 To try it, open http://localhost:3100, sign up (any email; for local testing we use `demo@storeops.test` / `demo-owner-pass-2026`) and pick **Supabase / Postgres** with the connection string `postgresql://agent_role:agent_role@localhost:5434/boutique`. The welcome page then shows your first digest as the worker writes it (this needs the Claude key below).
 
+Forgot a password? **Forgot password?** on the log-in page emails a reset link (printed in the dashboard's console without `RESEND_API_KEY`). From a terminal you can also set one directly (typed hidden): `pnpm user:set-password owner@example.com`.
+
+New accounts start a 14-day trial with Starter's limits (1 store, ₹500 of AI usage a month). Plans are paid through Razorpay when its keys are set (see `.env.example`); without them, set a plan by hand: `pnpm user:set-plan owner@example.com growth` (`trial`, `starter`, `growth`, or `custom <stores> <₹ AI allowance>`). Owners can turn on two-factor sign-in under **Account**.
+
 The chat needs a Claude API key: set `ANTHROPIC_API_KEY` in `.env` to a key from the Claude Console (Settings → API keys; the agent API logs at startup whether it works) (and the two internal tokens, `AGENT_INTERNAL_TOKEN` and `MCP_INTERNAL_TOKEN`; commands are in `.env.example`), then open a store and choose **Ask the agent**. Each answer links to its trace: tool calls, policy decisions, tokens and cost.
 
 Approval emails go through Resend when `RESEND_API_KEY` is set; without it they are printed in the MCP server's console, link included. To try rules and approvals without a Claude key, send one tool call through the MCP server as the agent would:
@@ -132,6 +137,10 @@ pnpm typecheck
 - `packages/evals` — the eval harness itself: the task inventory, and every grader accepting correct behaviour and rejecting wrong behaviour, with scripted models.
 - `apps/agent` — the loop with a scripted model (tool limit, time limit, refusals, cost), and the full chain over HTTP: agent API → MCP → boutique database.
 - `e2e` — the launch path in a real browser: land, sign up, connect the boutique, see the first digest the worker wrote from its data (in under five minutes), ask for a coupon, approve it, find it in the activity log. The dashboard, agent API, MCP server and job worker run as in production against the test database and their own Redis database; only the model is scripted.
+
+## Security
+
+[docs/security.md](docs/security.md) goes through twenty common weaknesses (injection, XSS, CSRF, access control, rate limits, secrets, MFA, RLS, webhooks, SSRF and more): what the app does about each and where.
 
 ## Deploying
 

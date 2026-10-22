@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { dbForUser } from "@store-ops/db";
+import { rateLimit } from "@store-ops/tools";
 import { getSessionUser } from "@/lib/session";
 
 /**
@@ -34,6 +35,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (origin && new URL(origin).host !== req.headers.get("host")) {
     return Response.json({ error: "Cross-origin request" }, { status: 403 });
   }
+
+  // Each run costs money: a generous cap per owner stops runaway scripts.
+  const limit = await rateLimit(`chat:${user.id}`, 20, 60);
+  if (!limit.ok) return Response.json({ error: `Too many messages. Try again in ${limit.retryAfter} seconds.` }, { status: 429 });
 
   const { id } = await params;
   const store = await dbForUser(user.id).store.findUnique({ where: { id }, select: { id: true } });

@@ -1,6 +1,22 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { EmailTakenError, basePrisma, connectedStoreIds, createUser, dbForStore, dbForUser, findUserForLogin, storeIdForExternal } from "../src/index";
+import {
+  EmailTakenError,
+  applySubscriptionEvent,
+  basePrisma,
+  connectedStoreIds,
+  consumePasswordReset,
+  createPasswordReset,
+  createUser,
+  dbForStore,
+  dbForUser,
+  findUserForLogin,
+  ownerEntitlementForStore,
+  ownerEntitlementForUser,
+  setUserPasswordHash,
+  startSubscription,
+  storeIdForExternal,
+} from "../src/index";
 
 /**
  * Store A's context tries to reach store B's data by every route the platform
@@ -141,6 +157,44 @@ describe("tenant isolation", () => {
   it("refuses a second account with the same email, whatever its case", async () => {
     const email = (await dbForUser(userA).user.findUniqueOrThrow({ where: { id: userA } })).email;
     await expect(createUser(email.toUpperCase(), "Copy", "x")).rejects.toBeInstanceOf(EmailTakenError);
+  });
+
+  it("a password reset changes only that account's hash", async () => {
+    const emailA = (await dbForUser(userA).user.findUniqueOrThrow({ where: { id: userA } })).email;
+    const emailB = (await dbForUser(userB).user.findUniqueOrThrow({ where: { id: userB } })).email;
+    expect(await setUserPasswordHash(emailA.toUpperCase(), "new-hash-a")).toBe(true);
+    expect((await findUserForLogin(emailA))?.password_hash).toBe("new-hash-a");
+    expect((await findUserForLogin(emailB))?.password_hash).toBe("hash-b");
+    expect(await setUserPasswordHash("nobody@test.local", "x")).toBe(false);
+  });
+
+  it("plans: an owner's entitlement counts only their own stores and spend", async () => {
+    await dbForStore(storeB).usage.create({ data: { storeId: storeB, month: new Date().toISOString().slice(0, 7), runs: 1, tokens: 10, costInr: 42.5 } });
+    const forB = await ownerEntitlementForStore(storeB);
+    expect(forB).toMatchObject({ plan: "trial", planStatus: "trialing", storeCount: 1, monthSpendInr: 42.5 });
+    const forA = await ownerEntitlementForUser(userA);
+    expect(forA).toMatchObject({ storeCount: 1, monthSpendInr: 0 });
+    expect(await basePrisma().$queryRaw`SELECT * FROM app_owner_entitlement()`).toEqual([]); // no context, no answer
+  });
+
+  it("plans: the app cannot change an account's plan, only billing can", async () => {
+    await expect(dbForUser(userA).user.update({ where: { id: userA }, data: { plan: "growth" } })).rejects.toThrow(/permission denied/);
+    await expect(basePrisma().$queryRaw`SELECT app_admin_set_plan('x@test.local', 'custom', 'active', NULL, NULL)`).rejects.toThrow(/permission denied/);
+    await startSubscription(userA, `sub_${userA.slice(0, 8)}`, "growth");
+    expect(await applySubscriptionEvent({ subscriptionId: `sub_${userA.slice(0, 8)}`, plan: "growth", status: "active", renewsAt: null })).toBe(true);
+    expect((await ownerEntitlementForUser(userA))?.plan).toBe("growth");
+    expect(await applySubscriptionEvent({ subscriptionId: "sub_unknown", plan: "growth", status: "active", renewsAt: null })).toBe(false);
+  });
+
+  it("password reset tokens work once, and only for the account they were made for", async () => {
+    const email = (await dbForUser(userB).user.findUniqueOrThrow({ where: { id: userB } })).email;
+    expect(await createPasswordReset("nobody@test.local", "h-none", new Date(Date.now() + 60_000))).toBeNull();
+    expect(await createPasswordReset(email, `h-${userB}`, new Date(Date.now() + 60_000))).toMatchObject({ email });
+    expect(await consumePasswordReset(`h-${userB}`)).toBe(userB);
+    expect(await consumePasswordReset(`h-${userB}`)).toBeNull();
+    await createPasswordReset(email, `h-old-${userB}`, new Date(Date.now() - 1));
+    expect(await consumePasswordReset(`h-old-${userB}`)).toBeNull(); // expired
+    expect(await basePrisma().passwordResetToken.findMany().catch((e: Error) => e.message)).toMatch(/permission denied/);
   });
 
   it("login lookup works without a context and returns only auth fields", async () => {

@@ -1,38 +1,27 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { logout } from "@/lib/auth-actions";
-import { getSessionUser } from "@/lib/session";
+import { Inter } from "next/font/google";
+import { Suspense } from "react";
+import { NavProgress } from "@/components/nav-progress";
 import "./globals.css";
 
+const inter = Inter({ subsets: ["latin"], display: "swap" });
+
 export const metadata: Metadata = {
-  title: "Store Ops Agent",
-  description: "An AI agent that runs day-to-day store operations within rules you set.",
+  title: { default: "Store Ops Agent: an AI that runs your store, within your rules", template: "%s · Store Ops Agent" },
+  description:
+    "Answers questions about orders, stock and sales, sends a morning digest, drafts customer messages and proposes changes for your approval. For Shopify, WooCommerce and custom stores.",
+  openGraph: { siteName: "Store Ops Agent", type: "website" },
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const user = await getSessionUser();
+/** The public site and the dashboard each add their own header and footer: see (site) and (app). */
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.className}>
       <body className="min-h-screen">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-            <Link href={user ? "/stores" : "/"} className="font-semibold tracking-tight">
-              Store Ops <span className="text-brand">Agent</span>
-            </Link>
-            {user ? (
-              <form action={logout} className="flex items-center gap-3 text-sm">
-                <span className="text-slate-500">{user.name}</span>
-                <button className="text-slate-600 hover:text-slate-900">Log out</button>
-              </form>
-            ) : (
-              <nav className="flex items-center gap-4 text-sm">
-                <Link href="/login" className="text-slate-600 hover:text-slate-900">Log in</Link>
-                <Link href="/signup" className="btn btn-sm">Get started</Link>
-              </nav>
-            )}
-          </div>
-        </header>
-        <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+        <Suspense fallback={null}>
+          <NavProgress />
+        </Suspense>
+        {children}
       </body>
     </html>
   );

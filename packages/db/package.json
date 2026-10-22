@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "dotenv -e ../../.env.test -e ../../.env -- vitest run",
     "migrate:test": "dotenv -e ../../.env.test -e ../../.env -- prisma migrate deploy",
-    "setup:production": "tsx scripts/setup-app-role.ts && prisma migrate deploy"
+    "setup:production": "tsx scripts/setup-app-role.ts && prisma migrate deploy",
+    "set-plan": "dotenv -e ../../.env -- tsx scripts/set-plan.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3"

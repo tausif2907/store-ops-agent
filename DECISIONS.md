@@ -167,3 +167,32 @@ The plan's end-to-end check (connect a store, ask, approve, see the audit entry)
 ## 37. Supabase stores can declare what they support
 
 A store's `agent_api` may define `capabilities()`, returning the capabilities it supports; the adapter then offers the agent only the matching tools (a store without review replies never sees `reply_to_review`). Without the function, it gets all eight, as before. A declaration naming an unknown capability is an invalid response, not a silent full set.
+
+## 38. The public website lives in the app
+
+The marketing site (home, features, safety, integrations, pricing, developers, FAQ, about, contact, privacy, terms) was designed in Google Stitch and rebuilt as pages in the dashboard's Next.js app, under the `(site)` route group with its own header, footer and green/teal palette; the dashboard keeps its own layout under `(app)`. Living in the app means "Get started" and "Log in" are plain relative links (no app URL to configure), the connector spec link points at the app's own `/connector/openapi.json`, and there is one thing to deploy. Signed-in owners visiting `/` go to their stores; on other public pages the header offers "Go to dashboard". Stitch's export was a set of standalone pages using Tailwind's development CDN and a hotlinked stock photo; neither was kept. Its copy was rewritten to what the product does: no invented figures, WhatsApp, SLAs, SDKs or webhooks for custom stores, and the Developers page follows the real connector spec. The contact form composes an email in the visitor's own mail app rather than running a form backend. Pricing is enforced by billing (decision 41), and the privacy and terms pages are marked as drafts until legal text is written.
+
+## 39. Definer functions get their own RLS policy
+
+Every tenant table has `FORCE ROW LEVEL SECURITY`, so even its owner is filtered. The `SECURITY DEFINER` functions the app relies on run as that owner. On a local superuser that bypasses RLS and they worked; on managed Postgres (Render), where the owner is an ordinary role, they saw no rows and sign-up failed. Rather than drop `FORCE` (which would let any owner-run query see every tenant), each tenant table gets a policy for the owner role only (`<table>_definer`, `TO current_user`, created by the migration as the owner). The app role `storeops_app` has no such policy and stays fully filtered. A test database with a non-superuser owner reproduced the failure and confirmed the fix.
+
+## 40. Accounts: revocable sessions, two-factor, reset by email
+
+Sessions stay stateless JWT cookies, but each carries the account's `session_version`, compared with the database once per request (cached for the request). Bumping it on a password change, a reset or "Log out everywhere" ends every session without a session table. Two-factor is TOTP, written against RFC 6238 in `packages/shared` instead of a library (about 60 lines, tested on the RFC vectors), with the secret encrypted like store credentials and ten hashed one-time recovery codes. A correct password with two-factor on only sets a five-minute signed challenge cookie. Reset tokens are random 32 bytes, stored as SHA-256 in a table the app role cannot read, issued and consumed through definer functions; the request answers the same whether or not the email has an account. `users` can only be updated in the columns these features need.
+
+## 41. Plans are enforced in the database's answer, paid through Razorpay
+
+The website's plans are now real: a 14-day trial with Starter's limits, Starter (₹999 a month, 1 store, ₹500 of AI usage), Growth (₹2,499, 3 stores, ₹1,500) and Custom (limits set per account). One definer function, `app_owner_entitlement()`, returns an owner's plan, store count and this month's spend across all their stores, from either a user or a store context; `evaluateEntitlement` in `packages/tools` turns that into what is allowed. Connecting a store (form and Shopify callback) checks the store limit; the agent API and the worker check the plan before every run, ahead of the per-store budget. Razorpay Subscriptions was chosen for rupee pricing with UPI and cards: the owner pays on Razorpay's hosted page, so no card data touches the app, and plan changes arrive only through signed webhooks applied as the latest state. The app role cannot write plan columns; only the billing definer functions and an owner-only `pnpm user:set-plan` can. Without Razorpay keys the billing page says payments are not set up yet, and plans can be set by hand.
+
+## 42. Store addresses must be public
+
+Owners type in addresses the servers then connect to, which made the store connectors a way into the private network (the agent API, Redis, metadata services). Every adapter now resolves the host and refuses non-public addresses before connecting, and HTTP clients never follow redirects. Development and tests run stores on localhost, so `ALLOW_PRIVATE_STORE_HOSTS=1` lifts the check there; production refuses to start with it.
+
+## 43. Production refuses to start misconfigured
+
+`apps/web/instrumentation.ts` checks, at server start in production, that the secrets are set and long enough, that the database URL is not the development one, that the private-address switch is off and that `APP_URL` is HTTPS. A deploy that would run insecurely fails its health check instead. Security headers (CSP framing and form rules, HSTS and the usual others) are set in `next.config.ts` for every response. The full review is [docs/security.md](docs/security.md).
+
+## 44. The dashboard matches the website, and never looks stuck
+
+The dashboard took the website's green and teal palette, Inter, rounded cards and icons. Slow tab switches were mostly the development server compiling each page on its first visit; production builds switch in well under a second. To keep every click visibly answered anyway: tabs prefetch, each page has a skeleton (`loading.tsx`), the Overview streams its live store figures behind a skeleton instead of waiting for the store's API, and a thin bar at the top shows a navigation is under way. The development "N" badge is turned off.
+
