@@ -1,5 +1,5 @@
 // Job worker: runs the autonomous jobs on each store's schedule, one run per store at a time.
-import { anthropicModel } from "@store-ops/agent/anthropic-model";
+import { anthropicModel, checkClaudeAccess } from "@store-ops/agent/anthropic-model";
 import { connectMcpTools } from "@store-ops/agent/mcp-tools";
 import { JOB_TYPES, closeQueues, jobQueue, redisConnection, type JobType } from "@store-ops/tools";
 import { desiredSchedules, syncSchedules } from "./schedules";
@@ -35,6 +35,7 @@ async function tick() {
   }
 }
 
+void checkClaudeAccess().then((r) => (r.ok ? console.log(`Claude API key works with ${r.model}`) : console.error(`Automations will fail: ${r.message}`)));
 await tick();
 const timer = setInterval(tick, SYNC_EVERY_MS);
 console.log(`Worker running ${JOB_TYPES.length} queues`);

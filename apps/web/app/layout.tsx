@@ -24,7 +24,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <span className="text-slate-500">{user.name}</span>
                 <button className="text-slate-600 hover:text-slate-900">Log out</button>
               </form>
-            ) : null}
+            ) : (
+              <nav className="flex items-center gap-4 text-sm">
+                <Link href="/login" className="text-slate-600 hover:text-slate-900">Log in</Link>
+                <Link href="/signup" className="btn btn-sm">Get started</Link>
+              </nav>
+            )}
           </div>
         </header>
         <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>

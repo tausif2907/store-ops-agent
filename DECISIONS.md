@@ -151,3 +151,19 @@ Every run's cost is already recorded; a monthly limit per store (default ₹500,
 ## 33. Rate limits: stay under them, then back off
 
 A token bucket per store API host is shared by every adapter in the process. Shopify's bucket is re-synced from the `throttleStatus` Shopify returns, and each query reserves its last known cost, so concurrent runs on one store queue rather than get throttled. WooCommerce and custom connectors use request rates (configurable). Any 429 or 5xx is retried after `Retry-After` or a jittered exponential backoff, then reported as `RATE_LIMITED` so the worker retries the job later.
+
+## 34. Onboarding starts the first digest at connect time
+
+The plan's onboarding goal is sign-up to a first digest in under five minutes, and waiting for 09:00 tomorrow would miss it by a day. So connecting a store (Supabase, WooCommerce, custom connector, or a new Shopify install) queues its morning digest straight away, through the same worker, planner, MCP server and policy check as the scheduled one, and the owner lands on a welcome page that polls it. Before the worker starts the run, the page reads the queue job (waiting, skipped with a reason, failed); afterwards, the run row. It shows the time from sign-up to the finished digest, and offers to try again when the queue is unreachable or the run failed. Queueing gives up after five seconds, because with Redis down ioredis waits rather than failing, and a stuck queue must not stop the store from connecting. The helper that queues it is not a server action, so only code that has just connected a store for its owner can start one.
+
+## 35. One private network on Render, not the dashboard on Vercel
+
+The plan put the dashboard on Vercel and the Node services on Railway or Render. With the dashboard on another network, the agent API would have to be public, and so would Redis, which the dashboard needs for "Run now" and the first digest. A single Render Blueprint keeps both private: the dashboard is the only public service, the agent API and MCP server are private services addressed by `host:port` (the apps accept a bare `host:port` in `AGENT_URL` and `MCP_URL`), and Key Value takes no outside connections. Render generates the secrets once. The dashboard's pre-deploy step creates the `storeops_app` role from `APP_DATABASE_URL` and runs migrations as the owner; the services only ever have the app role's credentials. Builds run pnpm through `npx`, and services start from the workspace's own binaries, so nothing depends on how the host provides pnpm. Vercel stays possible (docs/deploy.md says what it takes).
+
+## 36. The browser test runs the real services with a scripted model
+
+The plan's end-to-end check (connect a store, ask, approve, see the audit entry) runs in Playwright against the dashboard, agent API, MCP server and job worker as they run in production, on the test database and a separate Redis database, with only the model replaced. The scripted model calls real tools and writes its answers from their results, so the digest the test reads came from the boutique's data. It runs in CI without a Claude key. Locally it uses the installed Chrome; CI installs Playwright's Chromium. Its dev server builds into `.next-e2e` and listens on its own ports, so it leaves a running `pnpm dev` alone.
+
+## 37. Supabase stores can declare what they support
+
+A store's `agent_api` may define `capabilities()`, returning the capabilities it supports; the adapter then offers the agent only the matching tools (a store without review replies never sees `reply_to_review`). Without the function, it gets all eight, as before. A declaration naming an unknown capability is an invalid response, not a silent full set.

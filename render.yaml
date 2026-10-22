@@ -1,0 +1,163 @@
+# Render Blueprint: the dashboard, agent API, MCP server and job worker in one
+# private network, with Postgres and Key Value (Redis). Only the dashboard is
+# public; the agent API and MCP server are private services, and Redis takes
+# no outside connections. Walkthrough, and what to fill in: docs/deploy.md.
+#
+# Builds run pnpm through npx and services start from the workspace's own
+# binaries, so nothing depends on a package manager being installed on the host.
+
+envVarGroups:
+  - name: storeops-shared
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Generated once on first deploy. Back up CREDENTIALS_ENCRYPTION_KEY:
+      # without it, stored store credentials cannot be decrypted.
+      - key: CREDENTIALS_ENCRYPTION_KEY
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: APPROVAL_LINK_SECRET
+        generateValue: true
+      - key: AGENT_INTERNAL_TOKEN
+        generateValue: true
+      - key: MCP_INTERNAL_TOKEN
+        generateValue: true
+      - key: AGENT_MODEL
+        value: claude-opus-5-5
+      - key: AGENT_EFFORT
+        value: medium
+      - key: USD_TO_INR
+        value: "84"
+      - key: DEFAULT_MONTHLY_BUDGET_INR
+        value: "500"
+
+databases:
+  - name: storeops-db
+    databaseName: storeops
+    user: storeops
+    region: singapore
+    postgresMajorVersion: "16"
+
+services:
+  - type: keyvalue
+    name: storeops-redis
+    region: singapore
+    # BullMQ needs keys never to be evicted.
+    maxmemoryPolicy: noeviction
+    # Private network only.
+    ipAllowList: []
+
+  - type: web
+    name: storeops-web
+    runtime: node
+    region: singapore
+    buildCommand: npx --yes pnpm@9.15.9 install --frozen-lockfile --prod=false && npx --yes pnpm@9.15.9 --filter @store-ops/web build
+    # Creates the storeops_app role (from APP_DATABASE_URL) and applies migrations, as the owner.
+    preDeployCommand: cd packages/db && npx tsx scripts/setup-app-role.ts && npx prisma migrate deploy
+    startCommand: cd apps/web && npx next start
+    healthCheckPath: /api/health
+    envVars:
+      - fromGroup: storeops-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: storeops-db
+          property: connectionString
+      - key: APP_DATABASE_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: AGENT_URL
+        fromService:
+          type: pserv
+          name: storeops-agent
+          property: hostport
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: storeops-redis
+          property: connectionString
+      - key: SHOPIFY_CLIENT_ID
+        sync: false
+      - key: SHOPIFY_CLIENT_SECRET
+        sync: false
+
+  - type: pserv
+    name: storeops-agent
+    runtime: node
+    region: singapore
+    buildCommand: npx --yes pnpm@9.15.9 install --frozen-lockfile --prod=false
+    startCommand: cd apps/agent && npx tsx src/index.ts
+    envVars:
+      - fromGroup: storeops-shared
+      - key: AGENT_HOST
+        value: 0.0.0.0
+      - key: AGENT_PORT
+        value: "10000"
+      - key: APP_DATABASE_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MCP_URL
+        fromService:
+          type: pserv
+          name: storeops-mcp
+          property: hostport
+
+  - type: pserv
+    name: storeops-mcp
+    runtime: node
+    region: singapore
+    buildCommand: npx --yes pnpm@9.15.9 install --frozen-lockfile --prod=false
+    startCommand: cd apps/mcp && npx tsx src/index.ts
+    envVars:
+      - fromGroup: storeops-shared
+      - key: MCP_HOST
+        value: 0.0.0.0
+      - key: MCP_PORT
+        value: "10000"
+      - key: APP_DATABASE_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SHOPIFY_CLIENT_ID
+        sync: false
+      - key: SHOPIFY_CLIENT_SECRET
+        sync: false
+
+  - type: worker
+    name: storeops-worker
+    runtime: node
+    region: singapore
+    buildCommand: npx --yes pnpm@9.15.9 install --frozen-lockfile --prod=false
+    startCommand: cd apps/worker && npx tsx src/index.ts
+    envVars:
+      - fromGroup: storeops-shared
+      - key: APP_DATABASE_URL
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SHOPIFY_CLIENT_ID
+        sync: false
+      - key: SHOPIFY_CLIENT_SECRET
+        sync: false
+      - key: MCP_URL
+        fromService:
+          type: pserv
+          name: storeops-mcp
+          property: hostport
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: storeops-redis
+          property: connectionString

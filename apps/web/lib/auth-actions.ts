@@ -37,7 +37,8 @@ export async function signup(_prev: FormState, form: FormData): Promise<FormStat
     throw err;
   }
   await startSession({ id, name });
-  redirect("/stores");
+  // Straight into onboarding: connecting a store is the next step.
+  redirect("/stores/new");
 }
 
 export async function login(_prev: FormState, form: FormData): Promise<FormState> {

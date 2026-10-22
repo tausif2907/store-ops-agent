@@ -61,9 +61,9 @@ export async function startShopifyInstall(userId: string, shopInput: string): Pr
 /**
  * Finishes the install for the signed-in owner: verifies the callback,
  * stores the encrypted tokens, and creates (or reconnects) the store.
- * Returns the store id.
+ * Returns the store id, and whether the store is new (rather than reconnected).
  */
-export async function finishShopifyInstall(userId: string, params: URLSearchParams): Promise<{ storeId: string } | { error: string }> {
+export async function finishShopifyInstall(userId: string, params: URLSearchParams): Promise<{ storeId: string; isNew: boolean } | { error: string }> {
   const app = appConfigFromEnv();
   if (!app) return { error: "Shopify is not set up on this server." };
 
@@ -138,5 +138,5 @@ export async function finishShopifyInstall(userId: string, params: URLSearchPara
     },
   });
   await ensureDefaultJobs(db, storeId);
-  return { storeId };
+  return { storeId, isNew: !existing };
 }

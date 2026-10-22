@@ -16,6 +16,15 @@ const ChatRequest = z.object({
     .default([]),
 });
 
+// A run is capped at 60 seconds by the agent; leave room for the stream around it.
+export const maxDuration = 120;
+
+/** AGENT_URL, which a host may give as just "host:port". */
+function agentUrl(): string {
+  const value = process.env.AGENT_URL ?? "http://127.0.0.1:3200";
+  return value.includes("://") ? value.replace(/\/$/, "") : `http://${value}`;
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Not signed in" }, { status: 401 });
@@ -35,7 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   let upstream: Response;
   try {
-    upstream = await fetch(`${process.env.AGENT_URL ?? "http://127.0.0.1:3200"}/runs`, {
+    upstream = await fetch(`${agentUrl()}/runs`, {
       method: "POST",
       headers: { authorization: `Bearer ${process.env.AGENT_INTERNAL_TOKEN}`, "content-type": "application/json" },
       body: JSON.stringify({ storeId: store.id, ...parsed.data }),

@@ -10,6 +10,11 @@
 -- return shapes, and rewrite their bodies against your own tables. The tables
 -- below are a reference tailoring-boutique schema used for tests and local dev.
 --
+-- Optional: agent_api.capabilities() returns a JSON array of what the store
+-- supports, e.g. '["orders", "inventory", "inventory.write", "coupons"]', and
+-- the agent is offered only the matching tools. Without it, the adapter assumes
+-- all eight (orders, inventory, coupons, reviews and their .write forms).
+--
 -- This script is idempotent: it drops and recreates everything except the role.
 -- =============================================================================
 

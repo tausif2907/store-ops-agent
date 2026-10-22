@@ -11,6 +11,7 @@ import {
   enqueueJobNow,
   ensureDefaultJobs,
   isValidSchedule,
+  startFirstDigest,
   toJson,
   type JobType,
 } from "@store-ops/tools";
@@ -66,6 +67,14 @@ export async function runJobNow(storeId: string, type: JobType): Promise<{ ok: b
     return { ok: false, message: "The job worker is not reachable." };
   }
   return { ok: true, message: "Started. Results appear on the overview and in Runs in a minute or two." };
+}
+
+/** Starts (or restarts) a store's first digest from the welcome page. */
+export async function startWelcomeDigest(storeId: string): Promise<{ jobId: string } | { error: string }> {
+  const { store } = await ownedStore(storeId);
+  if (store.isPaused) return { error: "The store is paused. Resume it first." };
+  const jobId = await startFirstDigest(storeId);
+  return jobId ? { jobId } : { error: "The job queue cannot be reached right now. Try again in a minute." };
 }
 
 function parseJobType(type: string): JobType {

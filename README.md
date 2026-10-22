@@ -15,7 +15,7 @@ The agent decides what to look at and what to do, but every action passes a poli
 | 5 | WooCommerce adapter, custom REST connector spec | Done |
 | 6 | Autonomous jobs (BullMQ), email via Resend | Done |
 | 7 | Evals and hardening | Done (eval run needs a Claude key) |
-| 8 | Onboarding, deploy, launch polish | Next |
+| 8 | Onboarding, landing page, deploy blueprint, browser end-to-end test | Done (going live, the eval report and the demo video are run by hand: [deploy](docs/deploy.md), [evals](#evals), [demo script](docs/demo-script.md)) |
 
 ## Layout
 
@@ -26,9 +26,11 @@ apps/
   mcp/       MCP server: the 13 store tools, routed to the run's store adapter through the policy check
   worker/    BullMQ worker: the five autonomous jobs on each store's schedule, one run per store at a time
 evals → packages/evals: the 40-task eval suite, run per platform against the real agent
+e2e/         Playwright: sign-up to first digest to an approved change, in a browser against the real services
 examples/
   custom-connector/  Sample implementation of the connector API (passes the conformance suite)
-docs/                Setup guides for Shopify, WooCommerce and custom connectors; the connector OpenAPI spec
+docs/                Deploying, setup guides for Shopify, WooCommerce and custom connectors, the connector OpenAPI spec, the demo script
+render.yaml          The whole platform as a Render Blueprint
 packages/
   shared/    Normalised types (zod), capabilities, AES-256-GCM credential encryption
   adapters/  StoreAdapter interface; Supabase, Shopify, WooCommerce and custom REST adapters;
@@ -37,11 +39,35 @@ packages/
   db/        Prisma schema, migrations with Row-Level Security, tenant-scoped clients
 ```
 
+## Architecture
+
+Runs start from the owner's chat or from the job worker. Either way, every tool call goes through the MCP server's policy check and then the store's own adapter; the agent never touches a store directly.
+
+```mermaid
+flowchart LR
+  owner([Owner]) --> web["Dashboard<br/>Next.js"]
+  web -->|chat, SSE| agent["Agent API<br/>agent loop, limits, cost"]
+  web -->|Run now, first digest| redis[("Redis<br/>BullMQ")]
+  redis --> worker["Job worker<br/>5 automations"]
+  agent & worker -->|Messages API| claude([Claude])
+  agent -->|MCP, store and run in headers| mcp["MCP server"]
+  worker -->|same agent loop, in-process| mcp
+  mcp --> policy{"Policy engine<br/>Automatic / Ask / Off,<br/>limits, pause"}
+  policy -->|run| adapters["StoreAdapter"]
+  policy -->|ask| approvals["Approvals<br/>dashboard + email link"]
+  approvals -->|approved| adapters
+  adapters --> shopify([Shopify]) & woo([WooCommerce]) & supa(["Supabase agent_api"]) & custom([Custom connector])
+  web & mcp & worker --> db[("Postgres<br/>RLS per owner and store")]
+```
+
+The worker runs the same agent loop in-process and reaches the same MCP server, so automations and chat share one policy check and one trace. See [docs/deploy.md](docs/deploy.md) for how the services are laid out in production.
+
 ## How the pieces fit
 
 - **One adapter interface.** Every platform sits behind `StoreAdapter` (`packages/adapters/src/adapter.ts`) and returns the same normalised types: money in minor units plus a currency code, timestamps in UTC. Each adapter declares its capabilities; a missing capability throws `UNSUPPORTED`.
 - **Tenant isolation in the database.** The app connects as the non-owner `storeops_app` role, so RLS always applies. Queries go through `dbForUser(userId)` (dashboard) or `dbForStore(storeId)` (agent runs, jobs), which set `app.user_id` / `app.store_id` per transaction. With no context, tenant tables return nothing.
 - **Credentials never leave the server.** They are encrypted with AES-256-GCM before storage and decrypted only to build an adapter.
+- **Onboarding takes minutes.** Sign-up leads straight to picking a platform and connecting; the connection is tested before anything is saved. Connecting queues the store's first morning digest at once, and a welcome page shows it being written from the store's own data, with how long it took from sign-up.
 - **Agent runs go through MCP.** The dashboard's server checks the owner owns the store, then calls the internal agent API, which streams events back. The agent offers Claude only the tools the MCP server lists for that store (capability flags and the owner's Never settings filter them). Every call passes the policy check — reads and drafts run, writes are saved as approvals by default — and is recorded with its decision and latency. The store and run come from headers the agent API sets, never from the model.
 - **Owners set the rules.** Each tool is Automatic, Ask me or Off, per store. Automatic writes can carry limits (largest coupon discount and uses, largest stock change, allowed order statuses, runs per day); a call over a limit becomes an approval that says which limit it broke. Approvals expire after 30 minutes and can be decided in the dashboard or from a signed one-time email link, which runs the exact saved arguments. **Pause the agent** stops every run and every change at once. Every change, rule edit, pause and decision lands in the store's append-only activity log.
 - **The agent works on its own.** Five automations run on each store's schedule, in its own time zone: a morning digest, an hourly low-stock watch, a late-order follow-up that drafts apologies, a negative-review response, and a Monday report. Each first checks the store in code and only starts an agent run when there is something to do. Results go to the owner by email (Resend) and to the dashboard; drafts wait in the Inbox, where the owner sends or posts them. Owners switch automations on and off, change their times and run them now under **Automations**.
@@ -66,9 +92,9 @@ pnpm boutique:reset    # boutique reference schema + 50 products, 200 orders
 pnpm dev               # dashboard :3100, agent API :3200, MCP server :3201, job worker
 ```
 
-To try it: sign up (any email; for local testing we use `demo@storeops.test` / `demo-owner-pass-2026`), then **Connect a store** with platform Supabase and the connection string `postgresql://agent_role:agent_role@localhost:5434/boutique`.
+To try it, open http://localhost:3100, sign up (any email; for local testing we use `demo@storeops.test` / `demo-owner-pass-2026`) and pick **Supabase / Postgres** with the connection string `postgresql://agent_role:agent_role@localhost:5434/boutique`. The welcome page then shows your first digest as the worker writes it (this needs the Claude key below).
 
-The chat needs a Claude API key: set `ANTHROPIC_API_KEY` in `.env` (and the two internal tokens, `AGENT_INTERNAL_TOKEN` and `MCP_INTERNAL_TOKEN`; commands are in `.env.example`), then open a store and choose **Ask the agent**. Each answer links to its trace: tool calls, policy decisions, tokens and cost.
+The chat needs a Claude API key: set `ANTHROPIC_API_KEY` in `.env` to a key from the Claude Console (Settings → API keys; the agent API logs at startup whether it works) (and the two internal tokens, `AGENT_INTERNAL_TOKEN` and `MCP_INTERNAL_TOKEN`; commands are in `.env.example`), then open a store and choose **Ask the agent**. Each answer links to its trace: tool calls, policy decisions, tokens and cost.
 
 Approval emails go through Resend when `RESEND_API_KEY` is set; without it they are printed in the MCP server's console, link included. To try rules and approvals without a Claude key, send one tool call through the MCP server as the agent would:
 
@@ -92,6 +118,7 @@ Tests use their own database (`storeops_test`, set in `.env.test`), so the store
 
 ```bash
 pnpm test        # all packages (needs the databases running)
+pnpm test:e2e    # the browser test (also needs Chrome locally, or `pnpm --filter @store-ops/e2e exec playwright install chromium` and E2E_BROWSER_CHANNEL=chromium)
 pnpm typecheck
 ```
 
@@ -104,12 +131,18 @@ pnpm typecheck
 - `apps/agent` — security: a model that obeys every injected instruction still cannot change the store, see credentials or reach another store (no Claude key needed, runs in CI).
 - `packages/evals` — the eval harness itself: the task inventory, and every grader accepting correct behaviour and rejecting wrong behaviour, with scripted models.
 - `apps/agent` — the loop with a scripted model (tool limit, time limit, refusals, cost), and the full chain over HTTP: agent API → MCP → boutique database.
+- `e2e` — the launch path in a real browser: land, sign up, connect the boutique, see the first digest the worker wrote from its data (in under five minutes), ask for a coupon, approve it, find it in the activity log. The dashboard, agent API, MCP server and job worker run as in production against the test database and their own Redis database; only the model is scripted.
+
+## Deploying
+
+[`render.yaml`](render.yaml) deploys the dashboard, agent API, MCP server, job worker, Postgres and Redis as one Render Blueprint, with only the dashboard public. [docs/deploy.md](docs/deploy.md) walks through it: the values to fill in, how the database role and migrations are set up on each deploy, and what to check once it is live.
 
 ## Connecting the real boutique (Supabase)
 
 1. In the Supabase SQL editor, create the `agent_api` schema and functions from `boutique-reference.sql`, rewriting each function body against the boutique's real tables while keeping the signatures and JSON shapes. Do **not** run the `DROP TABLE` lines against production.
 2. Create `agent_role` with a strong password and grant it only `EXECUTE` on those functions.
 3. Connect the store in the dashboard with that role's connection string (the direct or session-pooler connection, with `sslmode=require`).
+   If the store does not support everything (for example, no review replies yet), add `agent_api.capabilities()` returning the supported list; the agent is then offered only those tools.
 4. Run the conformance suite against a copy of the boutique database to confirm the functions behave.
 
 See [DECISIONS.md](DECISIONS.md) for the reasoning behind these choices.

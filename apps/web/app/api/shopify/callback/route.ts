@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { welcomeUrl } from "@/lib/onboarding";
 import { finishShopifyInstall } from "@/lib/shopify";
 import { getSessionUser } from "@/lib/session";
 
@@ -14,5 +15,6 @@ export async function GET(req: NextRequest) {
     back.searchParams.set("error", result.error);
     return NextResponse.redirect(back);
   }
-  return NextResponse.redirect(new URL(`/stores/${result.storeId}`, req.url));
+  // A new store gets its first digest and the welcome page; a reconnected one goes back to its overview.
+  return NextResponse.redirect(new URL(result.isNew ? await welcomeUrl(result.storeId) : `/stores/${result.storeId}`, req.url));
 }

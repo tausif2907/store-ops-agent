@@ -49,6 +49,7 @@ const CouponList = z.array(Coupon);
 export class SupabaseAdapter implements StoreAdapter {
   readonly platform = "SUPABASE" as const;
   private readonly pool: pg.Pool;
+  private caps: Promise<Capability[]> | undefined;
 
   constructor(credentials: SupabaseCredentials) {
     const { connectionString } = SupabaseCredentials.parse(credentials);
@@ -63,8 +64,17 @@ export class SupabaseAdapter implements StoreAdapter {
     this.pool.on("error", () => {});
   }
 
+  /**
+   * A store may declare what its agent_api supports with agent_api.capabilities();
+   * stores without that function get the full set.
+   */
   async capabilities(): Promise<Capability[]> {
-    return [...CAPABILITIES];
+    this.caps ??= this.call("capabilities", [], z.array(z.enum(CAPABILITIES as [Capability, ...Capability[]]))).catch((err: unknown) => {
+      if (err instanceof AdapterError && err.code === "UNSUPPORTED") return [...CAPABILITIES];
+      this.caps = undefined; // try again next time
+      throw err;
+    });
+    return [...(await this.caps)];
   }
 
   async listOrders(filter: OrderFilter = {}): Promise<Page<Order>> {

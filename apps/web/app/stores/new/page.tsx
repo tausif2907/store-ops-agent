@@ -1,3 +1,4 @@
+import { OnboardingSteps } from "@/components/onboarding-steps";
 import { requireUser } from "@/lib/session";
 import { ConnectStoreForm } from "./connect-store-form";
 
@@ -5,11 +6,14 @@ export default async function NewStorePage({ searchParams }: { searchParams: Pro
   await requireUser();
   const { platform, error } = await searchParams;
   return (
-    <div className="mx-auto max-w-xl">
-      <h1 className="mb-1 text-2xl font-semibold">Connect a store</h1>
-      <p className="mb-6 text-sm text-slate-600">
-        We test the connection before saving anything. Credentials are encrypted and never shown to the AI model.
-      </p>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <OnboardingSteps current={2} />
+      <div>
+        <h1 className="text-2xl font-semibold">Connect your store</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Once it is connected, the agent reads through your store and writes your first morning digest, usually within a couple of minutes.
+        </p>
+      </div>
       <ConnectStoreForm initialPlatform={platform} initialError={error} />
     </div>
   );

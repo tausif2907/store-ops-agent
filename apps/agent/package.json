@@ -30,6 +30,7 @@
     "./run": "./src/run.ts",
     "./anthropic-model": "./src/anthropic-model.ts",
     "./mcp-tools": "./src/mcp-tools.ts",
-    "./loop": "./src/loop.ts"
+    "./loop": "./src/loop.ts",
+    "./http": "./src/http.ts"
   }
 }

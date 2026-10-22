@@ -145,10 +145,52 @@ export function jobQueue(type: JobType): Queue<JobData> {
   return queue;
 }
 
-/** Starts a job for a store now (the dashboard's "Run now"). At most one per store and job a minute. */
-export async function enqueueJobNow(storeId: string, type: JobType, reason: JobData["reason"] = "manual"): Promise<void> {
+/** Starts a job for a store now (the dashboard's "Run now"). At most one per store and job a minute. Returns the queue job id. */
+export async function enqueueJobNow(storeId: string, type: JobType, reason: JobData["reason"] = "manual"): Promise<string> {
   const minute = Math.floor(Date.now() / 60_000);
-  await jobQueue(type).add(type, { storeId, reason }, { jobId: `${reason}-${type}-${storeId}-${minute}` });
+  const jobId = `${reason}-${type}-${storeId}-${minute}`;
+  await jobQueue(type).add(type, { storeId, reason }, { jobId });
+  return jobId;
+}
+
+/**
+ * Starts a newly connected store's first morning digest, so the owner sees
+ * the agent work on their own data within minutes instead of at 09:00
+ * tomorrow. Returns the queue job id, or null when the queue cannot be
+ * reached (the welcome page then offers to try again).
+ */
+export async function startFirstDigest(storeId: string): Promise<string | null> {
+  // With Redis down, ioredis queues commands instead of failing: give up after a few seconds.
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), 5_000)));
+  try {
+    return await Promise.race([enqueueJobNow(storeId, "morning_digest", "manual"), timeout]);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export interface QueuedJobState {
+  state: "queued" | "active" | "skipped" | "failed" | "done" | "missing";
+  /** Why it was skipped, or why it failed. */
+  reason?: string;
+  queuedAt?: number;
+}
+
+/** Where a queued job for this store stands, for pages that wait on it. */
+export async function queuedJobState(type: JobType, jobId: string, storeId: string): Promise<QueuedJobState> {
+  const job = await jobQueue(type).getJob(jobId);
+  if (!job || job.data.storeId !== storeId) return { state: "missing" };
+  const state = await job.getState();
+  if (state === "failed") return { state: "failed", reason: job.failedReason, queuedAt: job.timestamp };
+  if (state === "active") return { state: "active", queuedAt: job.timestamp };
+  if (state === "completed") {
+    const result = job.returnvalue as { status?: string; reason?: string } | undefined;
+    return result?.status === "skipped" ? { state: "skipped", reason: result.reason, queuedAt: job.timestamp } : { state: "done", queuedAt: job.timestamp };
+  }
+  return { state: "queued", queuedAt: job.timestamp };
 }
 
 export async function closeQueues(): Promise<void> {

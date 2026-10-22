@@ -9,7 +9,9 @@ import type { ToolClient } from "./loop";
  * name and its arguments.
  */
 export async function connectMcpTools(ctx: { storeId: string; runId: string }): Promise<ToolClient & { close(): Promise<void> }> {
-  const url = process.env.MCP_URL ?? "http://127.0.0.1:3201/mcp";
+  // A host may give just "host:port" for a private service.
+  const configured = process.env.MCP_URL ?? "http://127.0.0.1:3201/mcp";
+  const url = configured.includes("://") ? configured : `http://${configured}/mcp`;
   const token = process.env.MCP_INTERNAL_TOKEN;
   if (!token) throw new Error("MCP_INTERNAL_TOKEN is not set");
 

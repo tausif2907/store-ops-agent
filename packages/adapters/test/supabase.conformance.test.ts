@@ -33,3 +33,48 @@ describe("supabase agent_role is restricted", () => {
     await adapter.close();
   });
 });
+
+describe("supabase capabilities", () => {
+  async function asAdmin(sql: string) {
+    const client = new pg.Client({ connectionString: ADMIN_URL });
+    await client.connect();
+    try {
+      await client.query(sql);
+    } finally {
+      await client.end();
+    }
+  }
+
+  it("are all eight when the store's agent_api does not declare them", async () => {
+    await resetBoutique(ADMIN_URL);
+    const adapter = new SupabaseAdapter({ connectionString: AGENT_URL });
+    expect(await adapter.capabilities()).toEqual(["orders", "orders.write", "inventory", "inventory.write", "coupons", "coupons.write", "reviews", "reviews.write"]);
+    await adapter.close();
+  });
+
+  it("follow agent_api.capabilities() when the store declares them", async () => {
+    await asAdmin(`
+      CREATE FUNCTION agent_api.capabilities() RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$ SELECT '["orders", "inventory", "reviews"]'::jsonb $$;
+      GRANT EXECUTE ON FUNCTION agent_api.capabilities() TO agent_role;`);
+    const adapter = new SupabaseAdapter({ connectionString: AGENT_URL });
+    try {
+      expect(await adapter.capabilities()).toEqual(["orders", "inventory", "reviews"]);
+    } finally {
+      await adapter.close();
+      await asAdmin("DROP FUNCTION agent_api.capabilities()");
+    }
+  });
+
+  it("reject a declaration with an unknown capability", async () => {
+    await asAdmin(`
+      CREATE FUNCTION agent_api.capabilities() RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$ SELECT '["orders", "refunds"]'::jsonb $$;
+      GRANT EXECUTE ON FUNCTION agent_api.capabilities() TO agent_role;`);
+    const adapter = new SupabaseAdapter({ connectionString: AGENT_URL });
+    try {
+      await expect(adapter.capabilities()).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+    } finally {
+      await adapter.close();
+      await asAdmin("DROP FUNCTION agent_api.capabilities()");
+    }
+  });
+});

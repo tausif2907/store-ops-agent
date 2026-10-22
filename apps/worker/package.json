@@ -26,5 +26,8 @@
     "dotenv-cli": "8.0.0",
     "tsx": "4.23.15",
     "vitest": "3.2.7"
+  },
+  "exports": {
+    "./workers": "./src/workers.ts"
   }
 }

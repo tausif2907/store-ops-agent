@@ -1,0 +1,26 @@
+{
+  "name": "@store-ops/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser end-to-end test: the dashboard against the real services, with a scripted model",
+  "scripts": {
+    "e2e": "dotenv -e ../.env.test -e ../.env -- playwright test",
+    "stack": "tsx stack.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@store-ops/adapters": "workspace:*",
+    "@store-ops/agent": "workspace:*",
+    "@store-ops/db": "workspace:*",
+    "@store-ops/mcp": "workspace:*",
+    "@store-ops/tools": "workspace:*",
+    "@store-ops/worker": "workspace:*"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
+    "@playwright/test": "1.63.0",
+    "dotenv-cli": "8.0.0",
+    "tsx": "4.23.15"
+  }
+}

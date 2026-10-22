@@ -1,5 +1,5 @@
 import { dbForStore, storesWithPendingWebhooks } from "@store-ops/db";
-import { enqueueJobNow } from "@store-ops/tools";
+import { enqueueJobNow, type JobData, type JobType } from "@store-ops/tools";
 
 /**
  * Turns stored platform webhooks into jobs. Stock and product changes start
@@ -9,7 +9,9 @@ import { enqueueJobNow } from "@store-ops/tools";
 
 const STOCK_TOPICS = /^(product\.updated|products\/update|inventory_levels\/update)$/;
 
-export async function processWebhookEvents(enqueue = enqueueJobNow): Promise<number> {
+export async function processWebhookEvents(
+  enqueue: (storeId: string, type: JobType, reason: JobData["reason"]) => Promise<unknown> = enqueueJobNow,
+): Promise<number> {
   let handled = 0;
   for (const storeId of await storesWithPendingWebhooks()) {
     const db = dbForStore(storeId);
