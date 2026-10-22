@@ -68,3 +68,72 @@ body {
 .nav-progress-bar {
   animation: nav-progress 1.1s ease-in-out infinite;
 }
+
+/* ---- Public site motion ------------------------------------------------------
+   Everything here is decoration: content is fully visible without JavaScript
+   and for visitors who ask for reduced motion. */
+
+/* Sections and cards rise in as they scroll into view (see components/site/motion.tsx). */
+.reveal {
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .reveal:not(.is-visible) {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+@keyframes site-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes site-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(4%, -6%) scale(1.08); }
+  66% { transform: translate(-5%, 4%) scale(0.95); }
+}
+@keyframes site-gradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes site-pop {
+  0% { opacity: 0; transform: translateY(8px) scale(0.98); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes site-caret {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .site-float { animation: site-float 6s ease-in-out infinite; }
+  .site-float-slow { animation: site-float 8s ease-in-out infinite; animation-delay: -3s; }
+  .site-drift { animation: site-drift 18s ease-in-out infinite; }
+  .site-pop { animation: site-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: var(--pop-delay, 0ms); }
+  .site-caret::after { content: ""; display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -2px; background: currentColor; animation: site-caret 1s step-end infinite; }
+}
+
+/* Headline accent: a slow green-to-teal sweep. */
+.site-gradient-text {
+  background-image: linear-gradient(90deg, #4ade80, #2dd4bf, #4ade80);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .site-gradient-text { animation: site-gradient 8s ease-in-out infinite; }
+}
+
+/* Faint grid behind dark and hero sections, fading out toward the edges. */
+.site-grid {
+  background-image: linear-gradient(to right, rgb(255 255 255 / 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 75%);
+}
+.site-grid-light {
+  background-image: linear-gradient(to right, rgb(15 23 42 / 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgb(15 23 42 / 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, #000 20%, transparent 70%);
+}

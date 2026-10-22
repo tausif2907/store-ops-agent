@@ -19,7 +19,7 @@ export default function ContactPage() {
           <p className="mt-3 max-w-2xl text-lg text-gray-500">Questions, a custom store, or help connecting? We reply within one working day.</p>
 
           <div className="mt-10 grid gap-6 lg:grid-cols-5">
-            <Card className="lg:col-span-3">
+            <Card still className="lg:col-span-3">
               <h2 className="mb-5 font-semibold text-ink">Send us a message</h2>
               <ContactForm />
             </Card>

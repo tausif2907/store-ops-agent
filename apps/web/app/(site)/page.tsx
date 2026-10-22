@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AgentDemo, LiveDigest, Pipeline, RulesPlayground } from "@/components/site/demos";
 import { Icon, type IconName } from "@/components/site/icons";
-import { AUTOMATIONS, ApprovalEmail, DigestCard, RulesPanel } from "@/components/site/mocks";
+import { AUTOMATIONS, ApprovalEmail } from "@/components/site/mocks";
+import { CountUp, Reveal, Tilt } from "@/components/site/motion";
 import { ButtonLink, Card, Chip, Container, CtaBand, Eyebrow, IconTile, SectionHeading } from "@/components/site/ui";
 import { getSessionUser } from "@/lib/session";
 
@@ -11,12 +13,11 @@ const FEATURES: { icon: IconName; title: string; body: string }[] = [
   { icon: "shield", title: "Changes only with your say-so", body: "Order status, stock, coupons and review replies wait for your approval by default. Switch the ones you trust to Automatic, with limits." },
 ];
 
-const STEPS = [
-  ["You ask, or a schedule starts it", "Chat, a timer, or a store event"],
-  ["The agent decides what to look up or do", "Orders, stock, coupons, reviews"],
-  ["Your rules check every action", "Automatic, Ask me or Off"],
-  ["It runs, or waits for your approval", "On your store's own API"],
-  ["Everything is logged", "Activity log and run trace"],
+const FACTS: { value: number; suffix?: string; label: string }[] = [
+  { value: 4, label: "store platforms" },
+  { value: 5, label: "automations on your clock" },
+  { value: 3, label: "modes for every action" },
+  { value: 30, suffix: " min", label: "before an approval link expires" },
 ];
 
 const SAFETY: { icon: IconName; title: string; body: string }[] = [
@@ -41,78 +42,131 @@ export default async function Home() {
   return (
     <>
       {/* Hero */}
-      <section className="border-b border-gray-200 bg-white">
-        <Container className="grid items-center gap-12 py-16 lg:grid-cols-12 lg:gap-8 lg:py-24">
+      <section className="relative overflow-hidden bg-ink text-white">
+        <div className="site-grid pointer-events-none absolute inset-0" aria-hidden />
+        <div className="site-drift pointer-events-none absolute -left-40 -top-40 h-[34rem] w-[34rem] rounded-full bg-green-600/30 blur-3xl" aria-hidden />
+        <div className="site-drift pointer-events-none absolute -bottom-48 right-[-10rem] h-[36rem] w-[36rem] rounded-full bg-teal-500/25 blur-3xl [animation-delay:-9s]" aria-hidden />
+
+        <Container className="relative grid items-center gap-14 py-16 lg:grid-cols-12 lg:gap-10 lg:py-24">
           <div className="lg:col-span-7">
-            <Eyebrow>For Shopify, WooCommerce and custom-built stores</Eyebrow>
-            <h1 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight text-ink sm:text-5xl lg:text-6xl">
-              An AI that runs your store&apos;s day-to-day, within rules you set.
-            </h1>
-            <p className="mt-5 max-w-xl text-lg text-gray-500">
-              It answers questions about orders, stock and sales, sends you a digest every morning, drafts messages to customers, and proposes changes
-              for you to approve.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink href="/signup" size="lg" icon="arrowRight">Connect your store</ButtonLink>
-              <ButtonLink href="#how-it-works" size="lg" variant="outline">See how it works</ButtonLink>
+            <div className="site-pop">
+              <Eyebrow dark>For Shopify, WooCommerce and custom-built stores</Eyebrow>
             </div>
-            <p className="mt-4 flex items-center gap-2 text-sm text-gray-500">
-              <Icon name="checkCircle" className="h-4 w-4 text-green-600" />
-              About five minutes to set up. Your first digest arrives as soon as you connect.
-            </p>
+            <div className="site-pop" style={{ "--pop-delay": "80ms" } as React.CSSProperties}>
+              <h1 className="mt-6 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-[4rem]">
+                An AI that runs your store&apos;s day-to-day, <span className="site-gradient-text">within rules you set.</span>
+              </h1>
+            </div>
+            <div className="site-pop" style={{ "--pop-delay": "160ms" } as React.CSSProperties}>
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-gray-300">
+                It answers questions about orders, stock and sales, sends you a digest every morning, drafts messages to customers, and proposes changes
+                for you to approve.
+              </p>
+            </div>
+            <div className="site-pop" style={{ "--pop-delay": "240ms" } as React.CSSProperties}>
+              <div className="mt-9 flex flex-wrap gap-3">
+                <Link
+                  href="/signup"
+                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-6 py-3.5 text-base font-semibold text-ink shadow-lg shadow-green-500/25 transition hover:-translate-y-0.5 hover:bg-green-400 hover:shadow-green-400/40"
+                >
+                  Connect your store
+                  <Icon name="arrowRight" className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+                <ButtonLink href="#try-it" size="lg" variant="ghost">Try the agent</ButtonLink>
+              </div>
+              <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-400">
+                {["14-day free trial", "No card needed", "About five minutes to set up"].map((t) => (
+                  <li key={t} className="flex items-center gap-2">
+                    <Icon name="checkCircle" className="h-4 w-4 text-green-400" /> {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-          <div className="lg:col-span-5">
-            <DigestCard />
+          <div className="site-pop lg:col-span-5" style={{ "--pop-delay": "200ms" } as React.CSSProperties}>
+            <Tilt>
+              <LiveDigest />
+            </Tilt>
           </div>
         </Container>
+
+        {/* Facts */}
+        <div className="relative border-t border-white/10 bg-white/[0.03] backdrop-blur">
+          <Container className="grid grid-cols-2 gap-6 py-8 md:grid-cols-4">
+            {FACTS.map((f, i) => (
+              <Reveal key={f.label} delay={i * 80} className="text-center md:text-left">
+                <p className="text-3xl font-bold tracking-tight text-white">
+                  <CountUp to={f.value} suffix={f.suffix} />
+                </p>
+                <p className="mt-1 text-sm text-gray-400">{f.label}</p>
+              </Reveal>
+            ))}
+          </Container>
+        </div>
       </section>
 
       {/* Value */}
-      <section className="bg-white">
-        <Container className="grid gap-5 py-16 md:grid-cols-3">
-          {FEATURES.map((f) => (
-            <Card key={f.title}>
-              <IconTile name={f.icon} />
-              <h2 className="mt-4 text-lg font-semibold text-ink">{f.title}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-gray-500">{f.body}</p>
-            </Card>
+      <section className="relative bg-white">
+        <Container className="grid gap-5 py-20 md:grid-cols-3">
+          {FEATURES.map((f, i) => (
+            <Reveal key={f.title} delay={i * 100}>
+              <Card className="h-full">
+                <IconTile name={f.icon} />
+                <h2 className="mt-4 text-lg font-semibold text-ink">{f.title}</h2>
+                <p className="mt-2 text-sm leading-relaxed text-gray-500">{f.body}</p>
+              </Card>
+            </Reveal>
           ))}
         </Container>
       </section>
 
+      {/* Try it */}
+      <section id="try-it" className="relative scroll-mt-20 overflow-hidden border-y border-gray-200 bg-gradient-to-b from-emerald-50/80 to-white">
+        <div className="site-grid-light pointer-events-none absolute inset-0" aria-hidden />
+        <Container className="relative py-20">
+          <Reveal>
+            <SectionHeading center eyebrow="Try it" title="Ask it about your store" lead="Click a question and watch it work: it looks things up, checks your rules before any change, and stays on the subject of your store." />
+          </Reveal>
+          <Reveal delay={120} className="mt-12">
+            <AgentDemo />
+          </Reveal>
+        </Container>
+      </section>
+
       {/* How it works */}
-      <section id="how-it-works" className="scroll-mt-20 border-y border-gray-200 bg-emerald-50/60">
+      <section id="how-it-works" className="scroll-mt-20 bg-white">
         <Container className="py-20">
-          <SectionHeading center title="How it works" lead="The agent decides what to look at and what to do. Your rules decide whether it may." />
-          <ol className="mt-12 grid gap-4 md:grid-cols-5">
-            {STEPS.map(([title, detail], i) => (
-              <li key={title} className="relative rounded-[10px] border border-gray-200 bg-white p-5 shadow-sm">
-                <span className="text-xs font-semibold uppercase tracking-wide text-teal-700">Step {i + 1}</span>
-                <p className="mt-2 font-semibold leading-snug text-ink">{title}</p>
-                <p className="mt-2 text-xs text-gray-500">{detail}</p>
-                {i < STEPS.length - 1 ? (
-                  <Icon name="arrowRight" className="absolute -right-3.5 top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 rounded-full bg-white text-green-600 md:block" />
-                ) : null}
-              </li>
-            ))}
-          </ol>
+          <Reveal>
+            <SectionHeading center title="How it works" lead="The agent decides what to look at and what to do. Your rules decide whether it may. Follow one change through." />
+          </Reveal>
+          <Reveal delay={120} className="mt-14">
+            <Pipeline />
+          </Reveal>
         </Container>
       </section>
 
       {/* Automations */}
-      <section className="bg-white">
+      <section className="border-y border-gray-200 bg-gray-50">
         <Container className="py-20">
-          <SectionHeading center title="Five automations, on your store's clock" lead="They check your store in code first and only wake the agent when there is something new, so quiet hours cost nothing." />
+          <Reveal>
+            <SectionHeading center title="Five automations, on your store's clock" lead="They check your store in code first and only wake the agent when there is something new, so quiet hours cost nothing." />
+          </Reveal>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {AUTOMATIONS.map((a) => (
-              <Card key={a.name} className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <IconTile name={a.icon} tone="teal" />
-                  <Chip>{a.schedule}</Chip>
-                </div>
-                <h3 className="mt-4 font-semibold text-ink">{a.name}</h3>
-                <p className="mt-1.5 text-sm text-gray-500">{a.text}</p>
-              </Card>
+            {AUTOMATIONS.map((a, i) => (
+              <Reveal key={a.name} delay={i * 80}>
+                <Card className="group h-full p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <IconTile name={a.icon} tone="teal" />
+                    <span className="relative flex h-2.5 w-2.5" aria-hidden>
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60 motion-reduce:hidden" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+                    </span>
+                  </div>
+                  <h3 className="mt-4 font-semibold text-ink">{a.name}</h3>
+                  <p className="mt-1"><Chip>{a.schedule}</Chip></p>
+                  <p className="mt-2.5 text-sm text-gray-500">{a.text}</p>
+                </Card>
+              </Reveal>
             ))}
           </div>
           <p className="mt-6 text-center text-sm text-gray-500">Switch each one on or off, change its time, or run it now.</p>
@@ -120,32 +174,47 @@ export default async function Home() {
       </section>
 
       {/* Rules */}
-      <section className="border-y border-gray-200 bg-gray-50">
+      <section className="bg-white">
         <Container className="py-20">
-          <SectionHeading center title="You set the rules" lead="Every action is Automatic, Ask me, or Off. Automatic actions can carry limits; anything over a limit comes back to you, with the reason." />
-          <div className="mt-12 grid gap-6 lg:grid-cols-2">
-            <RulesPanel />
-            <ApprovalEmail />
+          <Reveal>
+            <SectionHeading center title="You set the rules" lead="Every action is Automatic, Ask me, or Off. Automatic actions can carry limits; anything over a limit comes back to you, with the reason." />
+          </Reveal>
+          <div className="mt-12 grid items-start gap-6 lg:grid-cols-2">
+            <Reveal><RulesPlayground /></Reveal>
+            <Reveal delay={120}>
+              <Tilt max={4}><ApprovalEmail /></Tilt>
+            </Reveal>
           </div>
         </Container>
       </section>
 
       {/* Safety */}
-      <section className="bg-emerald-50/60">
-        <Container className="py-20">
-          <SectionHeading center title="Safe by design" lead="Built so the agent can be useful without being trusted blindly." />
+      <section className="relative overflow-hidden bg-ink text-white">
+        <div className="site-grid pointer-events-none absolute inset-0" aria-hidden />
+        <div className="site-drift pointer-events-none absolute left-1/2 top-0 h-[28rem] w-[40rem] -translate-x-1/2 rounded-full bg-green-600/20 blur-3xl" aria-hidden />
+        <Container className="relative py-20">
+          <Reveal>
+            <div className="mx-auto max-w-3xl text-center">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Safe by design</h2>
+              <p className="mt-3 text-lg text-gray-400">Built so the agent can be useful without being trusted blindly.</p>
+            </div>
+          </Reveal>
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {SAFETY.map((s) => (
-              <Card key={s.title}>
-                <IconTile name={s.icon} />
-                <h3 className="mt-4 font-semibold text-ink">{s.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-500">{s.body}</p>
-              </Card>
+            {SAFETY.map((s, i) => (
+              <Reveal key={s.title} delay={(i % 3) * 100}>
+                <div className="group h-full rounded-2xl border border-white/10 bg-white/[0.04] p-6 transition duration-300 hover:-translate-y-1 hover:border-green-500/40 hover:bg-white/[0.07]">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/15 text-green-400 transition group-hover:bg-green-500 group-hover:text-ink">
+                    <Icon name={s.icon} />
+                  </span>
+                  <h3 className="mt-4 font-semibold">{s.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-400">{s.body}</p>
+                </div>
+              </Reveal>
             ))}
           </div>
-          <p className="mt-8 text-center">
-            <Link href="/safety" className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 hover:underline">
-              How the safety works <Icon name="arrowRight" className="h-4 w-4" />
+          <p className="mt-10 text-center">
+            <Link href="/safety" className="group inline-flex items-center gap-1.5 text-sm font-semibold text-green-400 hover:text-green-300">
+              How the safety works <Icon name="arrowRight" className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Link>
           </p>
         </Container>
@@ -154,37 +223,52 @@ export default async function Home() {
       {/* Platforms */}
       <section className="bg-white">
         <Container className="py-20">
-          <SectionHeading center title="Works with your store" lead="One agent, the same rules, whichever platform you run on." />
+          <Reveal>
+            <SectionHeading center title="Works with your store" lead="One agent, the same rules, whichever platform you run on." />
+          </Reveal>
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {PLATFORMS.map((p) => (
-              <Link key={p.name} href="/integrations" className="group rounded-[10px] border border-gray-200 bg-white p-5 shadow-sm transition-colors hover:border-green-600">
-                <IconTile name={p.icon} tone="ink" />
-                <p className="mt-4 font-semibold text-ink">{p.name}</p>
-                <p className="mt-1 text-sm text-gray-500">{p.how}</p>
-                <p className="mt-4"><Chip tone="green">{p.chip}</Chip></p>
-              </Link>
+            {PLATFORMS.map((p, i) => (
+              <Reveal key={p.name} delay={i * 80}>
+                <Link
+                  href="/integrations"
+                  className="group flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-green-500 hover:shadow-xl hover:shadow-green-900/5"
+                >
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-ink text-white transition group-hover:bg-green-600">
+                    <Icon name={p.icon} />
+                  </span>
+                  <p className="mt-4 flex items-center gap-1.5 font-semibold text-ink">
+                    {p.name}
+                    <Icon name="arrowRight" className="h-4 w-4 -translate-x-1 text-green-600 opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100" />
+                  </p>
+                  <p className="mt-1 flex-1 text-sm text-gray-500">{p.how}</p>
+                  <p className="mt-4"><Chip tone="green">{p.chip}</Chip></p>
+                </Link>
+              </Reveal>
             ))}
           </div>
         </Container>
       </section>
 
       {/* Onboarding */}
-      <section className="border-t border-gray-200 bg-gray-50">
+      <section className="border-t border-gray-200 bg-gradient-to-b from-gray-50 to-emerald-50/50">
         <Container className="py-20">
-          <SectionHeading center title="Live in five minutes" lead="No setup calls and no engineers for Shopify or WooCommerce." />
-          <ol className="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-3">
+          <Reveal>
+            <SectionHeading center title="Live in five minutes" lead="No setup calls and no engineers for Shopify or WooCommerce." />
+          </Reveal>
+          <ol className="relative mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-3">
+            <span className="absolute left-[16%] right-[16%] top-[2.65rem] hidden h-0.5 bg-gradient-to-r from-green-600 via-teal-500 to-green-600 opacity-30 md:block" aria-hidden />
             {[
               ["Create an account", "An email and a password. No card."],
               ["Connect your store", "Pick your platform. We test the connection before saving anything."],
               ["Read your first digest", "Written from your store's own data, usually within a couple of minutes."],
             ].map(([title, body], i) => (
-              <li key={title}>
-                <Card className="h-full">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-green-600 font-semibold text-white">{i + 1}</span>
+              <Reveal as="li" key={title} delay={i * 120}>
+                <Card className="relative h-full text-center">
+                  <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-teal-600 font-semibold text-white shadow-lg shadow-green-600/30">{i + 1}</span>
                   <p className="mt-4 font-semibold text-ink">{title}</p>
                   <p className="mt-1.5 text-sm text-gray-500">{body}</p>
                 </Card>
-              </li>
+              </Reveal>
             ))}
           </ol>
         </Container>
