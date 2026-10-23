@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { AgentDemo, LiveDigest, Pipeline, RulesPlayground } from "@/components/site/demos";
 import { Icon, type IconName } from "@/components/site/icons";
 import { AUTOMATIONS, ApprovalEmail } from "@/components/site/mocks";
-import { CountUp, Reveal, Tilt } from "@/components/site/motion";
+import AnimatedContent from "@/components/site/animated-content";
+import { CountUp, Tilt } from "@/components/site/motion";
 import { ButtonLink, Card, Chip, Container, CtaBand, Eyebrow, IconTile, SectionHeading } from "@/components/site/ui";
 import { getSessionUser } from "@/lib/session";
 
@@ -92,31 +93,33 @@ export default async function Home() {
 
         {/* Facts */}
         <div className="relative border-t border-white/10 bg-white/[0.03] backdrop-blur">
-          <Container className="grid grid-cols-2 gap-6 py-8 md:grid-cols-4">
-            {FACTS.map((f, i) => (
-              <Reveal key={f.label} delay={i * 80} className="text-center md:text-left">
-                <p className="text-3xl font-bold tracking-tight text-white">
-                  <CountUp to={f.value} suffix={f.suffix} />
-                </p>
-                <p className="mt-1 text-sm text-gray-400">{f.label}</p>
-              </Reveal>
-            ))}
+          <Container>
+            <AnimatedContent className="grid grid-cols-2 gap-6 py-8 md:grid-cols-4" distance={30} stagger={0.1} duration={0.7} threshold={0.05}>
+              {FACTS.map((f) => (
+                <div key={f.label} className="text-center md:text-left">
+                  <p className="text-3xl font-bold tracking-tight text-white">
+                    <CountUp to={f.value} suffix={f.suffix} />
+                  </p>
+                  <p className="mt-1 text-sm text-gray-400">{f.label}</p>
+                </div>
+              ))}
+            </AnimatedContent>
           </Container>
         </div>
       </section>
 
       {/* Value */}
       <section className="relative bg-white">
-        <Container className="grid gap-5 py-20 md:grid-cols-3">
-          {FEATURES.map((f, i) => (
-            <Reveal key={f.title} delay={i * 100}>
-              <Card className="h-full">
+        <Container className="py-20">
+          <AnimatedContent className="grid gap-5 md:grid-cols-3" distance={60} stagger={0.12} scale={0.96}>
+            {FEATURES.map((f) => (
+              <Card key={f.title} className="h-full">
                 <IconTile name={f.icon} />
                 <h2 className="mt-4 text-lg font-semibold text-ink">{f.title}</h2>
                 <p className="mt-2 text-sm leading-relaxed text-gray-500">{f.body}</p>
               </Card>
-            </Reveal>
-          ))}
+            ))}
+          </AnimatedContent>
         </Container>
       </section>
 
@@ -124,37 +127,36 @@ export default async function Home() {
       <section id="try-it" className="relative scroll-mt-20 overflow-hidden border-y border-gray-200 bg-gradient-to-b from-emerald-50/80 to-white">
         <div className="site-grid-light pointer-events-none absolute inset-0" aria-hidden />
         <Container className="relative py-20">
-          <Reveal>
+          <AnimatedContent distance={40} blur={10} duration={0.9}>
             <SectionHeading center eyebrow="Try it" title="Ask it about your store" lead="Click a question and watch it work: it looks things up, checks your rules before any change, and stays on the subject of your store." />
-          </Reveal>
-          <Reveal delay={120} className="mt-12">
+          </AnimatedContent>
+          <AnimatedContent className="mt-12" distance={80} tilt={12} duration={1} ease="expo.out" delay={0.1}>
             <AgentDemo />
-          </Reveal>
+          </AnimatedContent>
         </Container>
       </section>
 
       {/* How it works */}
       <section id="how-it-works" className="scroll-mt-20 bg-white">
         <Container className="py-20">
-          <Reveal>
+          <AnimatedContent distance={40} blur={10} duration={0.9}>
             <SectionHeading center title="How it works" lead="The agent decides what to look at and what to do. Your rules decide whether it may. Follow one change through." />
-          </Reveal>
-          <Reveal delay={120} className="mt-14">
+          </AnimatedContent>
+          <AnimatedContent className="mt-14" distance={60} tilt={10} duration={1} ease="expo.out" delay={0.1}>
             <Pipeline />
-          </Reveal>
+          </AnimatedContent>
         </Container>
       </section>
 
       {/* Automations */}
       <section className="border-y border-gray-200 bg-gray-50">
         <Container className="py-20">
-          <Reveal>
+          <AnimatedContent distance={40} blur={10} duration={0.9}>
             <SectionHeading center title="Five automations, on your store's clock" lead="They check your store in code first and only wake the agent when there is something new, so quiet hours cost nothing." />
-          </Reveal>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {AUTOMATIONS.map((a, i) => (
-              <Reveal key={a.name} delay={i * 80}>
-                <Card className="group h-full p-5">
+          </AnimatedContent>
+          <AnimatedContent className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5" distance={50} tilt={20} stagger={0.09} duration={0.9} ease="back.out(1.4)">
+            {AUTOMATIONS.map((a) => (
+                <Card key={a.name} className="group h-full p-5">
                   <div className="flex items-center justify-between gap-2">
                     <IconTile name={a.icon} tone="teal" />
                     <span className="relative flex h-2.5 w-2.5" aria-hidden>
@@ -166,9 +168,8 @@ export default async function Home() {
                   <p className="mt-1"><Chip>{a.schedule}</Chip></p>
                   <p className="mt-2.5 text-sm text-gray-500">{a.text}</p>
                 </Card>
-              </Reveal>
             ))}
-          </div>
+          </AnimatedContent>
           <p className="mt-6 text-center text-sm text-gray-500">Switch each one on or off, change its time, or run it now.</p>
         </Container>
       </section>
@@ -176,14 +177,16 @@ export default async function Home() {
       {/* Rules */}
       <section className="bg-white">
         <Container className="py-20">
-          <Reveal>
+          <AnimatedContent distance={40} blur={10} duration={0.9}>
             <SectionHeading center title="You set the rules" lead="Every action is Automatic, Ask me, or Off. Automatic actions can carry limits; anything over a limit comes back to you, with the reason." />
-          </Reveal>
+          </AnimatedContent>
           <div className="mt-12 grid items-start gap-6 lg:grid-cols-2">
-            <Reveal><RulesPlayground /></Reveal>
-            <Reveal delay={120}>
+            <AnimatedContent direction="horizontal" reverse distance={80} duration={0.9}>
+              <RulesPlayground />
+            </AnimatedContent>
+            <AnimatedContent direction="horizontal" distance={80} duration={0.9} delay={0.15}>
               <Tilt max={4}><ApprovalEmail /></Tilt>
-            </Reveal>
+            </AnimatedContent>
           </div>
         </Container>
       </section>
@@ -193,25 +196,23 @@ export default async function Home() {
         <div className="site-grid pointer-events-none absolute inset-0" aria-hidden />
         <div className="site-drift pointer-events-none absolute left-1/2 top-0 h-[28rem] w-[40rem] -translate-x-1/2 rounded-full bg-green-600/20 blur-3xl" aria-hidden />
         <Container className="relative py-20">
-          <Reveal>
+          <AnimatedContent distance={40} blur={10} duration={0.9}>
             <div className="mx-auto max-w-3xl text-center">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Safe by design</h2>
               <p className="mt-3 text-lg text-gray-400">Built so the agent can be useful without being trusted blindly.</p>
             </div>
-          </Reveal>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {SAFETY.map((s, i) => (
-              <Reveal key={s.title} delay={(i % 3) * 100}>
-                <div className="group h-full rounded-2xl border border-white/10 bg-white/[0.04] p-6 transition duration-300 hover:-translate-y-1 hover:border-green-500/40 hover:bg-white/[0.07]">
+          </AnimatedContent>
+          <AnimatedContent className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3" distance={40} blur={8} scale={0.94} stagger={0.08} staggerFrom="center" duration={0.8}>
+            {SAFETY.map((s) => (
+                <div key={s.title} className="group h-full rounded-2xl border border-white/10 bg-white/[0.04] p-6 transition duration-300 hover:-translate-y-1 hover:border-green-500/40 hover:bg-white/[0.07]">
                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/15 text-green-400 transition group-hover:bg-green-500 group-hover:text-ink">
                     <Icon name={s.icon} />
                   </span>
                   <h3 className="mt-4 font-semibold">{s.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-gray-400">{s.body}</p>
                 </div>
-              </Reveal>
             ))}
-          </div>
+          </AnimatedContent>
           <p className="mt-10 text-center">
             <Link href="/safety" className="group inline-flex items-center gap-1.5 text-sm font-semibold text-green-400 hover:text-green-300">
               How the safety works <Icon name="arrowRight" className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -223,13 +224,13 @@ export default async function Home() {
       {/* Platforms */}
       <section className="bg-white">
         <Container className="py-20">
-          <Reveal>
+          <AnimatedContent distance={40} blur={10} duration={0.9}>
             <SectionHeading center title="Works with your store" lead="One agent, the same rules, whichever platform you run on." />
-          </Reveal>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {PLATFORMS.map((p, i) => (
-              <Reveal key={p.name} delay={i * 80}>
+          </AnimatedContent>
+          <AnimatedContent className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" direction="horizontal" distance={60} stagger={0.1} duration={0.8}>
+            {PLATFORMS.map((p) => (
                 <Link
+                  key={p.name}
                   href="/integrations"
                   className="group flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-green-500 hover:shadow-xl hover:shadow-green-900/5"
                 >
@@ -243,34 +244,35 @@ export default async function Home() {
                   <p className="mt-1 flex-1 text-sm text-gray-500">{p.how}</p>
                   <p className="mt-4"><Chip tone="green">{p.chip}</Chip></p>
                 </Link>
-              </Reveal>
             ))}
-          </div>
+          </AnimatedContent>
         </Container>
       </section>
 
       {/* Onboarding */}
       <section className="border-t border-gray-200 bg-gradient-to-b from-gray-50 to-emerald-50/50">
         <Container className="py-20">
-          <Reveal>
+          <AnimatedContent distance={40} blur={10} duration={0.9}>
             <SectionHeading center title="Live in five minutes" lead="No setup calls and no engineers for Shopify or WooCommerce." />
-          </Reveal>
-          <ol className="relative mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-3">
+          </AnimatedContent>
+          <div className="relative mx-auto mt-12 max-w-5xl">
             <span className="absolute left-[16%] right-[16%] top-[2.65rem] hidden h-0.5 bg-gradient-to-r from-green-600 via-teal-500 to-green-600 opacity-30 md:block" aria-hidden />
+            <AnimatedContent role="list" className="relative grid gap-5 md:grid-cols-3" distance={40} wipe="up" stagger={0.15} duration={0.9}>
             {[
               ["Create an account", "An email and a password. No card."],
               ["Connect your store", "Pick your platform. We test the connection before saving anything."],
               ["Read your first digest", "Written from your store's own data, usually within a couple of minutes."],
             ].map(([title, body], i) => (
-              <Reveal as="li" key={title} delay={i * 120}>
+              <div role="listitem" key={title}>
                 <Card className="relative h-full text-center">
                   <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-teal-600 font-semibold text-white shadow-lg shadow-green-600/30">{i + 1}</span>
                   <p className="mt-4 font-semibold text-ink">{title}</p>
                   <p className="mt-1.5 text-sm text-gray-500">{body}</p>
                 </Card>
-              </Reveal>
+              </div>
             ))}
-          </ol>
+            </AnimatedContent>
+          </div>
         </Container>
       </section>
 

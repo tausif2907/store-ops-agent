@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ActivityMock, ApprovalsMock, AutomationsList, BudgetMock, ChatMock, DraftMock, TraceMock } from "@/components/site/mocks";
-import { Reveal, Tilt } from "@/components/site/motion";
+import AnimatedContent from "@/components/site/animated-content";
+import { Tilt } from "@/components/site/motion";
 import { Check, Container, CtaBand, Eyebrow, PageHero } from "@/components/site/ui";
 
 export const metadata: Metadata = {
@@ -21,7 +22,7 @@ function Feature({ id, eyebrow, title, lead, points, children, flip = false, tin
   return (
     <section id={id} className={`scroll-mt-20 border-b border-gray-200 ${tint ? "bg-emerald-50/60" : "bg-white"}`}>
       <Container className="grid items-center gap-10 py-20 lg:grid-cols-2">
-        <Reveal className={flip ? "lg:order-2" : ""}>
+        <AnimatedContent className={flip ? "lg:order-2" : ""} direction="horizontal" reverse={!flip} distance={60} blur={6} duration={0.9}>
           <Eyebrow>{eyebrow}</Eyebrow>
           <h2 className="mt-4 text-3xl font-bold tracking-tight text-ink">{title}</h2>
           <p className="mt-3 text-lg text-gray-500">{lead}</p>
@@ -30,10 +31,10 @@ function Feature({ id, eyebrow, title, lead, points, children, flip = false, tin
               <Check key={p}>{p}</Check>
             ))}
           </ul>
-        </Reveal>
-        <Reveal delay={120} className={flip ? "lg:order-1" : ""}>
+        </AnimatedContent>
+        <AnimatedContent className={flip ? "lg:order-1" : ""} distance={70} tilt={14} duration={1} ease="expo.out" delay={0.12}>
           <Tilt max={4}>{children}</Tilt>
-        </Reveal>
+        </AnimatedContent>
       </Container>
     </section>
   );

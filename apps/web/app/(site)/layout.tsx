@@ -7,8 +7,12 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const user = await getSessionUser();
   return (
     <div className="flex min-h-screen flex-col bg-white text-ink antialiased">
+      {/* Scroll animations start hidden; without scripts, show everything. */}
+      <noscript>
+        <style>{"[data-animated-content]{visibility:visible!important}"}</style>
+      </noscript>
       <SiteHeader signedIn={user !== null} />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 overflow-x-clip">{children}</main>
       <SiteFooter />
     </div>
   );

@@ -33,25 +33,6 @@ export function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** Rises into place the first time it scrolls into view. */
-export function Reveal({ children, delay = 0, className = "", as: Tag = "div" }: {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-  as?: "div" | "li" | "section";
-}) {
-  const [ref, inView] = useInView<HTMLDivElement>();
-  return (
-    <Tag
-      ref={ref as React.Ref<never>}
-      className={`reveal ${inView ? "is-visible" : ""} ${className}`}
-      style={{ "--reveal-delay": `${delay}ms` } as React.CSSProperties}
-    >
-      {children}
-    </Tag>
-  );
-}
-
 /** Leans toward the pointer a little, like a card picked up off the page. */
 export function Tilt({ children, className = "", max = 6 }: { children: React.ReactNode; className?: string; max?: number }) {
   const ref = useRef<HTMLDivElement>(null);
